@@ -38,31 +38,30 @@ func main() {
 	width := 512
 	height := 512
 
-	ambient := 0.12
-	maxSteps := 1000
-	stepSize := 0.1
+	ambient := 0.32
+	maxSteps := 2000
+	stepSize := 0.01
 
-	_ = Plane{
-		Position: Vec3{X: 0, Y: -1, Z: 0},
-		Normal:   Vec3{X: 0, Y: 1, Z: 0},
-	}
-	sphere1 := Sphere{
-		Position: Vec3{X: 10, Y: 10, Z: 20},
-		Radius:   2,
-	}
-	sphere2 := Sphere{
-		Position: Vec3{X: -10, Y: 0, Z: 20},
-		Radius:   5,
-	}
+	// Scene
 	camera := Camera{
-		Position:         Vec3{X: 0, Y: 10, Z: 0},
-		Forward:          Vec3{X: 0, Y: -0.5, Z: 0.866},
+		Position:         Vec3{X: 0, Y: 0, Z: 0},
+		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
-		Up:               Vec3{X: 0, Y: -0.866, Z: -0.5},
-		FrustrumDistance: 0.7,
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 1,
 	}
 
-	sunDirection := Vec3{X: -1, Y: 1, Z: -2}.Normalize()
+	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 5)
+	boxObj := Object{
+		Position: Vec3{Z: 10},
+		Mesh:     *boxMesh,
+	}
+
+	scene := []Object{
+		boxObj,
+	}
+
+	sunDirection := Vec3{X: 0, Y: 1, Z: 1}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -119,6 +118,8 @@ func main() {
 
 	w.Show()
 
+	vertices, tris, normals := DecomposeObjects(scene)
+
 	calculate := func(ctx context.Context, targetImg *image.RGBA, imgMutex *sync.Mutex) {
 		done := false
 		go func() {
@@ -152,36 +153,24 @@ func main() {
 					break
 				}
 
-				distanceFromSphere1 := rayPosition.Sub(sphere1.Position).Length()
-				if distanceFromSphere1 <= sphere1.Radius {
-					normal := sphere1.Position.Sub(rayPosition).Normalize()
-					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-
-					imgMutex.Lock()
-					targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 0), G: uint8(ndotr * 70), B: uint8(ndotr * 255), A: 255})
-					imgMutex.Unlock()
-					break
-				}
-
-				distanceFromSphere2 := rayPosition.Sub(sphere2.Position).Length()
-				if distanceFromSphere2 <= sphere2.Radius {
-					normal := sphere2.Position.Sub(rayPosition).Normalize()
-					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-
-					imgMutex.Lock()
-					targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 218), G: uint8(ndotr * 62), B: uint8(ndotr * 62), A: 255})
-					imgMutex.Unlock()
-					break
-				}
-
-				// Plane
-				if rayPosition.Y <= -5 {
-					ndotr := math.Min(1.0, math.Max(ambient, Vec3{Y: 1}.Dot(sunDirection)))
-					sd := Vec3{X: -sunDirection.X, Y: sunDirection.Y, Z: -sunDirection.Z}
-					if raymarch(rayPosition, sd, sphere1, sphere2, 1000) {
-						ndotr = 0.1
+				for i := 0; i < len(tris); i += 3 {
+					intersects, t := IntersectSegmentTriangle(rayPosition, rayDirection, stepSize, vertices[tris[i]], vertices[tris[i+1]], vertices[tris[i+2]])
+					if !intersects {
+						continue
 					}
 
+					intersection_point := rayPosition.Add(rayDirection.Scale(t))
+					normal := InterpolateNormal(
+						intersection_point,
+						vertices[tris[i]],
+						vertices[tris[i+1]],
+						vertices[tris[i+2]],
+						normals[i],
+						normals[i+1],
+						normals[i+2],
+					)
+
+					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
 					imgMutex.Lock()
 					targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
 					imgMutex.Unlock()

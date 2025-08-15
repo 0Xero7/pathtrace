@@ -33,3 +33,11 @@ func (v Vec3) Normalize() Vec3 {
 	}
 	return v.Scale(1.0 / length)
 }
+
+func (v Vec3) Cross(other Vec3) Vec3 {
+	return Vec3{
+		X: v.Y*other.Z - v.Z*other.Y,
+		Y: v.Z*other.X - v.X*other.Z,
+		Z: v.X*other.Y - v.Y*other.X,
+	}
+}
