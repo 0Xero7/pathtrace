@@ -14,16 +14,21 @@ import (
 	"fyne.io/fyne/v2/canvas"
 )
 
-func do(width, height int, image *image.RGBA, flip bool) {
-	for i := range width {
-		for j := range height {
-			if ((i/64+j/64)%2 == 0) == flip {
-				image.Set(i, j, color.White)
-			} else {
-				image.Set(i, j, color.Black)
-			}
+func raymarch(origin, direction Vec3, sphere1, sphere2 Sphere, maxSteps int) bool {
+	rayPosition := origin
+	for range maxSteps {
+		distanceFromSphere1 := rayPosition.Sub(sphere1.Position).Length()
+		if distanceFromSphere1 <= sphere1.Radius {
+			return true
 		}
+
+		distanceFromSphere2 := rayPosition.Sub(sphere2.Position).Length()
+		if distanceFromSphere2 <= sphere2.Radius {
+			return true
+		}
+		rayPosition = rayPosition.Add(direction.Scale(0.1))
 	}
+	return false
 }
 
 func main() {
@@ -57,7 +62,7 @@ func main() {
 		FrustrumDistance: 0.7,
 	}
 
-	sunDirection := Vec3{X: -1, Y: 1, Z: 2}.Normalize()
+	sunDirection := Vec3{X: -1, Y: 1, Z: -2}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -72,7 +77,46 @@ func main() {
 		}
 	}
 
+	dirty := true
 	w.SetContent(canvas.NewImageFromImage(img))
+
+	// Add keystroke handling
+	w.Canvas().SetOnTypedKey(func(key *fyne.KeyEvent) {
+		switch key.Name {
+		case fyne.KeyW:
+			camera.Position = camera.Position.Add(camera.Forward.Scale(0.1))
+			dirty = true
+		case fyne.KeyA:
+			camera.Position = camera.Position.Add(camera.Right.Scale(-0.1))
+			dirty = true
+		case fyne.KeyS:
+			camera.Position = camera.Position.Add(camera.Forward.Scale(-0.1))
+			dirty = true
+		case fyne.KeyD:
+			camera.Position = camera.Position.Add(camera.Right.Scale(0.1))
+			dirty = true
+		case fyne.KeyQ:
+			camera.Position = camera.Position.Add(camera.Up.Scale(0.1))
+			dirty = true
+		case fyne.KeyE:
+			camera.Position = camera.Position.Add(camera.Up.Scale(-0.1))
+			dirty = true
+
+		case fyne.KeyUp:
+			sunDirection.Z += 0.1
+			dirty = true
+		case fyne.KeyDown:
+			sunDirection.Z -= 0.1
+			dirty = true
+		case fyne.KeyLeft:
+			sunDirection.X -= 0.1
+			dirty = true
+		case fyne.KeyRight:
+			sunDirection.X += 0.1
+			dirty = true
+		}
+	})
+
 	w.Show()
 
 	calculate := func(ctx context.Context, targetImg *image.RGBA, imgMutex *sync.Mutex) {
@@ -131,8 +175,12 @@ func main() {
 				}
 
 				// Plane
-				if rayPosition.Y <= 0 && math.Abs(rayPosition.X) <= 3 && math.Abs(rayPosition.Z) <= 3 {
+				if rayPosition.Y <= -5 {
 					ndotr := math.Min(1.0, math.Max(ambient, Vec3{Y: 1}.Dot(sunDirection)))
+					sd := Vec3{X: -sunDirection.X, Y: sunDirection.Y, Z: -sunDirection.Z}
+					if raymarch(rayPosition, sd, sphere1, sphere2, 1000) {
+						ndotr = 0.1
+					}
 
 					imgMutex.Lock()
 					targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
@@ -147,7 +195,6 @@ func main() {
 
 	// Animation loop
 	totalTime := 0.0
-	dirty := true
 
 	go func() {
 		ticker := time.NewTicker(16 * time.Millisecond) // ~60 FPS
@@ -158,19 +205,6 @@ func main() {
 			case <-ticker.C:
 				deltaTime := 0.1
 				totalTime += deltaTime
-
-				// Update scene parameters
-				// sunDirection.X = -math.Sin(totalTime)
-				// sphere1.Position.X = 10 * math.Sin(totalTime)
-				// sphere1.Position.Y = 10 * math.Cos(totalTime)
-				// sphere2.Position.X = -10 * math.Sin(totalTime)
-				// sphere2.Position.Y = -10 * math.Cos(totalTime)
-				// y := math.Pow(math.Sin(totalTime), 2)
-				// sy := 2 * math.Sin(y)
-				// cy := 2 * math.Cos(y)
-				// camera.Forward = Vec3{0, sy, cy}
-				// camera.Up = Vec3{0, -cy, sy}
-				// dirty = true
 
 				if dirty {
 					dirty = false
