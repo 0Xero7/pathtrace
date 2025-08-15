@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"image"
 	"image/color"
 	"math"
@@ -49,7 +49,7 @@ func main() {
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: 1, Z: 0},
-		FrustrumDistance: 1,
+		FrustrumDistance: 0.7,
 	}
 
 	sunDirection := Vec3{X: -1, Y: 1, Z: 2}.Normalize()
@@ -59,6 +59,55 @@ func main() {
 	w.SetContent(canvas.NewImageFromImage(img))
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 	w.Show()
+
+	calculate := func(ctx context.Context) {
+		done := false
+		go func() {
+			<-ctx.Done()
+			done = true
+		}()
+
+		for !done {
+			rx := rand.Float64()
+			ry := rand.Float64()
+			pixelX := math.Round(rx * float64(width))
+			pixelY := math.Round(ry * float64(height))
+
+			px := (rx - 0.5) * 2
+			py := (ry - 0.5) * 2
+			rayOrigin := camera.Position.Add(camera.Forward.Scale(camera.FrustrumDistance)).Add(camera.Up.Scale(py)).Add(camera.Right.Scale(px))
+			rayDirection := Vec3{
+				X: rayOrigin.X - camera.Position.X,
+				Y: rayOrigin.Y - camera.Position.Y,
+				Z: rayOrigin.Z - camera.Position.Z,
+			}.Normalize()
+
+			rayPosition := rayOrigin
+			for range maxSteps {
+				if done {
+					break
+				}
+
+				distanceFromSphere1 := rayPosition.Sub(sphere1.Position).Length()
+				if distanceFromSphere1 <= sphere1.Radius {
+					normal := sphere1.Position.Sub(rayPosition).Normalize()
+					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+					img.Set(int(pixelX), int(pixelY), color.RGBA{R: uint8(ndotr * 0), G: uint8(ndotr * 70), B: uint8(ndotr * 255), A: 255})
+					break
+				}
+
+				distanceFromSphere2 := rayPosition.Sub(sphere2.Position).Length()
+				if distanceFromSphere2 <= sphere2.Radius {
+					normal := sphere2.Position.Sub(rayPosition).Normalize()
+					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+					img.Set(int(pixelX), int(pixelY), color.RGBA{R: uint8(ndotr * 218), G: uint8(ndotr * 62), B: uint8(ndotr * 62), A: 255})
+					break
+				}
+
+				rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
+			}
+		}
+	}
 
 	totalTime := 0.0
 
@@ -76,51 +125,13 @@ func main() {
 
 		for range 1 {
 			fyne.Do(func() {
-				t := time.Now().UnixMilli()
-				rays := 0
-				for {
-					dt := time.Now().UnixMilli()
-					if dt-t > 64 {
-						fmt.Printf("Calculated %d rays\n", rays)
-						break
-					}
-					rays += 1
-
-					rx := rand.Float64()
-					ry := rand.Float64()
-					pixelX := math.Round(rx * float64(width))
-					pixelY := math.Round(ry * float64(height))
-
-					px := (rx - 0.5) * 2
-					py := (ry - 0.5) * 2
-					rayOrigin := camera.Position.Add(camera.Forward.Scale(camera.FrustrumDistance)).Add(camera.Up.Scale(py)).Add(camera.Right.Scale(px))
-					rayDirection := Vec3{
-						X: rayOrigin.X - camera.Position.X,
-						Y: rayOrigin.Y - camera.Position.Y,
-						Z: rayOrigin.Z - camera.Position.Z,
-					}.Normalize()
-
-					rayPosition := rayOrigin
-					for range maxSteps {
-						distanceFromSphere1 := rayPosition.Sub(sphere1.Position).Length()
-						if distanceFromSphere1 <= sphere1.Radius {
-							normal := sphere1.Position.Sub(rayPosition).Normalize()
-							ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-							img.Set(int(pixelX), int(pixelY), color.RGBA{R: uint8(ndotr * 0), G: uint8(ndotr * 0), B: uint8(ndotr * 255), A: 255})
-							break
-						}
-
-						distanceFromSphere2 := rayPosition.Sub(sphere2.Position).Length()
-						if distanceFromSphere2 <= sphere2.Radius {
-							normal := sphere2.Position.Sub(rayPosition).Normalize()
-							ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-							img.Set(int(pixelX), int(pixelY), color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 0), B: uint8(ndotr * 0), A: 255})
-							break
-						}
-
-						rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
-					}
+				// t := time.Now().UnixMilli()
+				// rays := 0
+				ctx, _ := context.WithTimeout(context.Background(), 16*time.Millisecond)
+				for range 16 {
+					go calculate(ctx)
 				}
+				<-ctx.Done()
 
 				w.SetContent(canvas.NewImageFromImage(img))
 				w.Show()
