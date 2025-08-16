@@ -36,9 +36,10 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 768
-	height := 768
+	width := 512
+	height := 512
 
+	bounces := 1
 	ambient := 0.12
 	maxSteps := 1
 	stepSize := 1000.0
@@ -106,6 +107,13 @@ func main() {
 			camera.Position = camera.Position.Add(camera.Up.Scale(-0.1))
 			dirty = true
 
+		case fyne.KeyPageUp:
+			bounces++
+			dirty = true
+		case fyne.KeyPageDown:
+			bounces--
+			dirty = true
+
 		case fyne.KeyUp:
 			sunDirection.Z += 0.1
 			dirty = true
@@ -157,97 +165,124 @@ func main() {
 				Z: rayOrigin.Z - camera.Position.Z,
 			}.Normalize()
 
-			rayPosition := rayOrigin
-			for range maxSteps {
-				if done {
-					break
-				}
+			rayColor := TraceRay(rayOrigin, rayDirection, stepSize, bvh, maxSteps, bounces, vertices, normals, ambient, sunDirection)
+			// When a ray hits a pixel:
+			pixel := &pixelBuffer[pixelY][pixelX]
+			pixel.Lock.Lock()
 
-				intersects, t, tri := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices)
-				if intersects {
-					intersection_point := rayPosition.Add(rayDirection.Scale(t))
-					normal := InterpolateNormal(
-						intersection_point,
-						tri.A,
-						tri.B,
-						tri.C,
-						normals[tri.Index],
-						normals[tri.Index+1],
-						normals[tri.Index+2],
-					)
+			// Accumulate color
+			pixel.R += float64(rayColor.R)
+			pixel.G += float64(rayColor.G)
+			pixel.B += float64(rayColor.B)
+			pixel.SampleCount++
 
-					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-					shadow, _, _ := bvh.CheckIntersection(intersection_point.Add(normal.Scale(0.01)), sunDirection, stepSize, vertices)
-					if shadow {
-						ndotr = ambient
-					}
+			// Calculate running average
+			avgR := pixel.R / float64(pixel.SampleCount)
+			avgG := pixel.G / float64(pixel.SampleCount)
+			avgB := pixel.B / float64(pixel.SampleCount)
+			pixel.Lock.Unlock()
 
-					rayColor := color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255}
+			imgMutex.Lock()
+			// Update display
+			targetImg.Set(pixelX, pixelY, color.RGBA{
+				R: uint8(avgR),
+				G: uint8(avgG),
+				B: uint8(avgB),
+				A: 255,
+			})
+			imgMutex.Unlock()
 
-					// When a ray hits a pixel:
-					pixel := &pixelBuffer[pixelY][pixelX]
-					pixel.Lock.Lock()
+			// rayPosition := rayOrigin
+			// for range maxSteps {
+			// 	if done {
+			// 		break
+			// 	}
 
-					// Accumulate color
-					pixel.R += float64(rayColor.R)
-					pixel.G += float64(rayColor.G)
-					pixel.B += float64(rayColor.B)
-					pixel.SampleCount++
+			// 	intersects, t, tri := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices)
+			// 	if intersects {
+			// 		intersection_point := rayPosition.Add(rayDirection.Scale(t))
+			// 		normal := InterpolateNormal(
+			// 			intersection_point,
+			// 			tri.A,
+			// 			tri.B,
+			// 			tri.C,
+			// 			normals[tri.Index],
+			// 			normals[tri.Index+1],
+			// 			normals[tri.Index+2],
+			// 		)
 
-					// Calculate running average
-					avgR := pixel.R / float64(pixel.SampleCount)
-					avgG := pixel.G / float64(pixel.SampleCount)
-					avgB := pixel.B / float64(pixel.SampleCount)
-					pixel.Lock.Unlock()
+			// 		ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+			// 		shadow, _, _ := bvh.CheckIntersection(intersection_point.Add(normal.Scale(0.01)), sunDirection, stepSize, vertices)
+			// 		if shadow {
+			// 			ndotr = ambient
+			// 		}
 
-					imgMutex.Lock()
-					// Update display
-					targetImg.Set(pixelX, pixelY, color.RGBA{
-						R: uint8(avgR),
-						G: uint8(avgG),
-						B: uint8(avgB),
-						A: 255,
-					})
-					imgMutex.Unlock()
-					break
-				}
+			// 		rayColor := color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255}
 
-				// min_t := stepSize + 1
-				// for i := 0; i < len(tris); i += 3 {
-				// 	intersects, t := IntersectSegmentTriangle(rayPosition, rayDirection, stepSize, vertices[tris[i]], vertices[tris[i+1]], vertices[tris[i+2]])
-				// 	if !intersects || t > min_t {
-				// 		continue
-				// 	}
+			// 		// When a ray hits a pixel:
+			// 		pixel := &pixelBuffer[pixelY][pixelX]
+			// 		pixel.Lock.Lock()
 
-				// 	min_t = t
+			// 		// Accumulate color
+			// 		pixel.R += float64(rayColor.R)
+			// 		pixel.G += float64(rayColor.G)
+			// 		pixel.B += float64(rayColor.B)
+			// 		pixel.SampleCount++
 
-				// 	intersection_point := rayPosition.Add(rayDirection.Scale(t))
-				// 	// A := vertices[tris[i]]
-				// 	// B := vertices[tris[i+1]]
-				// 	// C := vertices[tris[i+2]]
-				// 	// edge1 := B.Sub(A)
-				// 	// edge2 := C.Sub(A)
-				// 	// normal := edge1.Cross(edge2).Normalize()
+			// 		// Calculate running average
+			// 		avgR := pixel.R / float64(pixel.SampleCount)
+			// 		avgG := pixel.G / float64(pixel.SampleCount)
+			// 		avgB := pixel.B / float64(pixel.SampleCount)
+			// 		pixel.Lock.Unlock()
 
-				// 	normal := InterpolateNormal(
-				// 		intersection_point,
-				// 		vertices[tris[i]],
-				// 		vertices[tris[i+1]],
-				// 		vertices[tris[i+2]],
-				// 		normals[i],
-				// 		normals[i+1],
-				// 		normals[i+2],
-				// 	)
+			// 		imgMutex.Lock()
+			// 		// Update display
+			// 		targetImg.Set(pixelX, pixelY, color.RGBA{
+			// 			R: uint8(avgR),
+			// 			G: uint8(avgG),
+			// 			B: uint8(avgB),
+			// 			A: 255,
+			// 		})
+			// 		imgMutex.Unlock()
+			// 		break
+			// 	}
 
-				// 	ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-				// 	imgMutex.Lock()
-				// 	targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
-				// 	imgMutex.Unlock()
-				// 	// break
-				// }
+			// 	// min_t := stepSize + 1
+			// 	// for i := 0; i < len(tris); i += 3 {
+			// 	// 	intersects, t := IntersectSegmentTriangle(rayPosition, rayDirection, stepSize, vertices[tris[i]], vertices[tris[i+1]], vertices[tris[i+2]])
+			// 	// 	if !intersects || t > min_t {
+			// 	// 		continue
+			// 	// 	}
 
-				rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
-			}
+			// 	// 	min_t = t
+
+			// 	// 	intersection_point := rayPosition.Add(rayDirection.Scale(t))
+			// 	// 	// A := vertices[tris[i]]
+			// 	// 	// B := vertices[tris[i+1]]
+			// 	// 	// C := vertices[tris[i+2]]
+			// 	// 	// edge1 := B.Sub(A)
+			// 	// 	// edge2 := C.Sub(A)
+			// 	// 	// normal := edge1.Cross(edge2).Normalize()
+
+			// 	// 	normal := InterpolateNormal(
+			// 	// 		intersection_point,
+			// 	// 		vertices[tris[i]],
+			// 	// 		vertices[tris[i+1]],
+			// 	// 		vertices[tris[i+2]],
+			// 	// 		normals[i],
+			// 	// 		normals[i+1],
+			// 	// 		normals[i+2],
+			// 	// 	)
+
+			// 	// 	ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+			// 	// 	imgMutex.Lock()
+			// 	// 	targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
+			// 	// 	imgMutex.Unlock()
+			// 	// 	// break
+			// 	// }
+
+			// 	rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
+			// }
 		}
 	}
 
