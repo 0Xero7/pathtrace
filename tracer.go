@@ -40,10 +40,14 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 			).Normalize()
 
 			diffuseColor := materials[tri.Index/3].Diffuse
+
 			if materials[tri.Index/3].MapKd != "" {
-				uv0_x, uv0_y := uvs[2*tri.Index], uvs[2*tri.Index+1]
-				uv1_x, uv1_y := uvs[2*(tri.Index+1)], uvs[2*(tri.Index+1)+1]
-				uv2_x, uv2_y := uvs[2*(tri.Index+2)], uvs[2*(tri.Index+2)+1]
+				triangleIndex := tri.Index / 3
+				baseUVIndex := triangleIndex * 6
+
+				uv0_x, uv0_y := uvs[baseUVIndex], uvs[baseUVIndex+1]
+				uv1_x, uv1_y := uvs[baseUVIndex+2], uvs[baseUVIndex+3]
+				uv2_x, uv2_y := uvs[baseUVIndex+4], uvs[baseUVIndex+5]
 
 				// Calculate barycentric coordinates
 				v0 := tri.B.Sub(tri.A)
@@ -61,9 +65,8 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 				v := (dot00*dot12 - dot01*dot02) * invDenom
 				w := 1.0 - u - v
 
-				// Interpolate UV coordinates
-				x := u*uv0_x + v*uv1_x + w*uv2_x
-				y := u*uv0_y + v*uv1_y + w*uv2_y
+				x := w*uv0_x + u*uv1_x + v*uv2_x
+				y := w*uv0_y + u*uv1_y + v*uv2_y
 
 				sampledColor := Sample(materials[tri.Index/3].MapKd, x, y)
 				diffuseColor.R = float32(sampledColor.R) / 255.0

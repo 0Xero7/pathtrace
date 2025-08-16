@@ -46,6 +46,8 @@ func main() {
 	stepSize := 1000.0
 
 	// Scene
+	rotY := 0.0
+	rotX := 0.0
 	camera := Camera{
 		// Position: Vec3{X: -0, Y: 0.9, Z: -2.5},
 		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
@@ -60,8 +62,9 @@ func main() {
 	}
 
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
-	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.2)
+	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.3)
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
 	boxObj := Object{
 		Position: Vec3{Z: 0},
 		Mesh:     *boxMesh,
@@ -109,6 +112,23 @@ func main() {
 			dirty = true
 		case fyne.KeyE:
 			camera.Position = camera.Position.Add(camera.Up.Scale(-0.1))
+			dirty = true
+
+		case fyne.KeyI:
+			rotX -= 0.01
+			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+			dirty = true
+		case fyne.KeyK:
+			rotX += 0.01
+			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+			dirty = true
+		case fyne.KeyJ:
+			rotY -= 0.01
+			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+			dirty = true
+		case fyne.KeyL:
+			rotY += 0.01
+			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
 			dirty = true
 
 		case fyne.KeyPageUp:
