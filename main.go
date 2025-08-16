@@ -15,22 +15,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 )
 
-func raymarch(origin, direction Vec3, sphere1, sphere2 Sphere, maxSteps int) bool {
-	rayPosition := origin
-	for range maxSteps {
-		distanceFromSphere1 := rayPosition.Sub(sphere1.Position).Length()
-		if distanceFromSphere1 <= sphere1.Radius {
-			return true
-		}
-
-		distanceFromSphere2 := rayPosition.Sub(sphere2.Position).Length()
-		if distanceFromSphere2 <= sphere2.Radius {
-			return true
-		}
-		rayPosition = rayPosition.Add(direction.Scale(0.1))
-	}
-	return false
-}
+var threadCount = 16 // Number of goroutines to use for rendering
 
 func main() {
 	a := app.New()
@@ -257,7 +242,7 @@ func main() {
 				var imgMutex sync.Mutex
 				ctx, cancel := context.WithTimeout(context.Background(), 128*time.Millisecond)
 
-				for range 16 {
+				for range threadCount {
 					go calculate(ctx, img, &imgMutex)
 				}
 				<-ctx.Done()
