@@ -1,5 +1,13 @@
 package main
 
+import "sync"
+
+type Pixel struct {
+	R, G, B     float64
+	SampleCount int
+	Lock        sync.Mutex
+}
+
 func DecomposeObjects(objects []Object) ([]Vec3, []int, []Vec3) {
 	vertices := make([]Vec3, 0)
 	tris := make([]int, 0)

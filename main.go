@@ -51,6 +51,10 @@ func main() {
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
 		FrustrumDistance: 1,
 	}
+	pixelBuffer := make([][]Pixel, height)
+	for i := range pixelBuffer {
+		pixelBuffer[i] = make([]Pixel, width)
+	}
 
 	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 3)
 	boxObj := Object{
@@ -173,8 +177,32 @@ func main() {
 					)
 
 					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+					rayColor := color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255}
+
+					// When a ray hits a pixel:
+					pixel := &pixelBuffer[pixelY][pixelX]
+					pixel.Lock.Lock()
+
+					// Accumulate color
+					pixel.R += float64(rayColor.R)
+					pixel.G += float64(rayColor.G)
+					pixel.B += float64(rayColor.B)
+					pixel.SampleCount++
+
+					// Calculate running average
+					avgR := pixel.R / float64(pixel.SampleCount)
+					avgG := pixel.G / float64(pixel.SampleCount)
+					avgB := pixel.B / float64(pixel.SampleCount)
+					pixel.Lock.Unlock()
+
 					imgMutex.Lock()
-					targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
+					// Update display
+					targetImg.Set(pixelX, pixelY, color.RGBA{
+						R: uint8(avgR),
+						G: uint8(avgG),
+						B: uint8(avgB),
+						A: 255,
+					})
 					imgMutex.Unlock()
 					break
 				}
@@ -240,6 +268,10 @@ func main() {
 					for y := 0; y < height; y++ {
 						for x := 0; x < width; x++ {
 							img.Set(x, y, color.RGBA{R: 0, G: 0, B: 0, A: 255})
+							pixelBuffer[x][y].Lock.Lock()
+							pixelBuffer[x][y].R, pixelBuffer[x][y].G, pixelBuffer[x][y].B = 0, 0, 0
+							pixelBuffer[x][y].SampleCount = 0
+							pixelBuffer[x][y].Lock.Unlock()
 						}
 					}
 				}
