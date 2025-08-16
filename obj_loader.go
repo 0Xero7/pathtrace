@@ -4,7 +4,7 @@ import (
 	"github.com/g3n/engine/loader/obj"
 )
 
-func LoadObj(path string, scaleFactor int) (*Mesh, error) {
+func LoadObj(path string, scaleFactor float64) (*Mesh, error) {
 	object, err := obj.Decode(path, "")
 	if err != nil {
 		return nil, err
