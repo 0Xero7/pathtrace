@@ -5,9 +5,11 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
+
+	"github.com/g3n/engine/loader/obj"
 )
 
-func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float64, bvh *Box, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, ambient float64, sunDirection Vec3) color.RGBA {
+func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float64, bvh *Box, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*obj.Material, uvs []float64, ambient float64, sunDirection Vec3) color.RGBA {
 	done := false
 	go func() {
 		<-ctx.Done()
@@ -37,7 +39,39 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 				normals[tri.Index+2],
 			).Normalize()
 
-			ndotr := math.Min(1.0, math.Max(0.0, normal.Dot(sunDirection)))
+			diffuseColor := materials[tri.Index/3].Diffuse
+			if materials[tri.Index/3].MapKd != "" {
+				uv0_x, uv0_y := uvs[2*tri.Index], uvs[2*tri.Index+1]
+				uv1_x, uv1_y := uvs[2*(tri.Index+1)], uvs[2*(tri.Index+1)+1]
+				uv2_x, uv2_y := uvs[2*(tri.Index+2)], uvs[2*(tri.Index+2)+1]
+
+				// Calculate barycentric coordinates
+				v0 := tri.B.Sub(tri.A)
+				v1 := tri.C.Sub(tri.A)
+				v2 := intersection_point.Sub(tri.A)
+
+				dot00 := v0.Dot(v0)
+				dot01 := v0.Dot(v1)
+				dot02 := v0.Dot(v2)
+				dot11 := v1.Dot(v1)
+				dot12 := v1.Dot(v2)
+
+				invDenom := 1.0 / (dot00*dot11 - dot01*dot01)
+				u := (dot11*dot02 - dot01*dot12) * invDenom
+				v := (dot00*dot12 - dot01*dot02) * invDenom
+				w := 1.0 - u - v
+
+				// Interpolate UV coordinates
+				x := u*uv0_x + v*uv1_x + w*uv2_x
+				y := u*uv0_y + v*uv1_y + w*uv2_y
+
+				sampledColor := Sample(materials[tri.Index/3].MapKd, x, y)
+				diffuseColor.R = float32(sampledColor.R) / 255.0
+				diffuseColor.G = float32(sampledColor.G) / 255.0
+				diffuseColor.B = float32(sampledColor.B) / 255.0
+			}
+
+			ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
 			shadow, _, _ := bvh.CheckIntersection(intersection_point.Add(normal.Scale(0.001)), sunDirection, stepSize, vertices)
 			if shadow {
 				ndotr = ambient
@@ -67,7 +101,7 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 					Add(tangent2.Scale(y)).
 					Add(normal.Scale(z))
 
-				contribution := TraceRay(ctx, intersection_point.Add(normal.Scale(0.001)), dir, stepSize, bvh, maxSteps, bounces-1, scatterRays, vertices, normals, ambient, sunDirection)
+				contribution := TraceRay(ctx, intersection_point.Add(normal.Scale(0.001)), dir, stepSize, bvh, maxSteps, bounces-1, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection)
 				albedo := 1.0
 				lambert := dir.Dot(normal)
 
@@ -82,12 +116,17 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 				indirectContribution = indirectContribution.Add(Vec3{X: r, Y: g, Z: b})
 			}
 			indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))
-			// indirectContribution = indirectContribution.Scale(al)
+			// indirectContribution = indirectContribution.Scale()
 
-			final := Vec3{X: ndotr * 255, Y: ndotr * 255, Z: ndotr * 255}.Add(indirectContribution)
-			final.X = math.Min(255, math.Max(0, final.X))
-			final.Y = math.Min(255, math.Max(0, final.Y))
-			final.Z = math.Min(255, math.Max(0, final.Z))
+			final := Vec3{
+				X: ndotr * float64(diffuseColor.R) * 255,
+				Y: ndotr * float64(diffuseColor.G) * 255,
+				Z: ndotr * float64(diffuseColor.B) * 255,
+			}.Add(indirectContribution)
+
+			final.X = math.Min(255, math.Max(ambient*255, final.X))
+			final.Y = math.Min(255, math.Max(ambient*255, final.Y))
+			final.Z = math.Min(255, math.Max(ambient*255, final.Z))
 			return color.RGBA{
 				R: uint8(final.X),
 				G: uint8(final.Y),

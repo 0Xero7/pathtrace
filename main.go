@@ -47,7 +47,8 @@ func main() {
 
 	// Scene
 	camera := Camera{
-		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6},
+		// Position: Vec3{X: -0, Y: 0.9, Z: -2.5},
+		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
@@ -59,7 +60,7 @@ func main() {
 	}
 
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
-	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.2)
+	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.2)
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	boxObj := Object{
 		Position: Vec3{Z: 0},
@@ -134,8 +135,8 @@ func main() {
 
 	w.Show()
 
-	vertices, tris, normals := DecomposeObjects(scene)
-	// println(len(normals))
+	vertices, tris, normals, materials, uvs := DecomposeObjects(scene)
+	println(len(materials))
 
 	fmt.Println("BVH Building...")
 	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 16, 48)
@@ -168,7 +169,7 @@ func main() {
 				Z: rayOrigin.Z - camera.Position.Z,
 			}.Normalize()
 
-			rayColor := TraceRay(ctx, camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, ambient, sunDirection)
+			rayColor := TraceRay(ctx, camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection)
 			// When a ray hits a pixel:
 			pixel := &pixelBuffer[pixelY][pixelX]
 			pixel.Lock.Lock()
