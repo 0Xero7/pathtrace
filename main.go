@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -38,7 +39,7 @@ func main() {
 	width := 512
 	height := 512
 
-	ambient := 0.32
+	ambient := 0.12
 	maxSteps := 2000
 	stepSize := 0.01
 
@@ -51,7 +52,7 @@ func main() {
 		FrustrumDistance: 1,
 	}
 
-	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 5)
+	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\test.obj", 5)
 	boxObj := Object{
 		Position: Vec3{Z: 10},
 		Mesh:     *boxMesh,
@@ -119,6 +120,9 @@ func main() {
 	w.Show()
 
 	vertices, tris, normals := DecomposeObjects(scene)
+	fmt.Println("BVH Building...")
+	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 5)
+	fmt.Println("BVH Built!")
 
 	calculate := func(ctx context.Context, targetImg *image.RGBA, imgMutex *sync.Mutex) {
 		done := false
@@ -153,21 +157,17 @@ func main() {
 					break
 				}
 
-				for i := 0; i < len(tris); i += 3 {
-					intersects, t := IntersectSegmentTriangle(rayPosition, rayDirection, stepSize, vertices[tris[i]], vertices[tris[i+1]], vertices[tris[i+2]])
-					if !intersects {
-						continue
-					}
-
+				intersects, t, t1, t2, t3 := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices)
+				if intersects {
 					intersection_point := rayPosition.Add(rayDirection.Scale(t))
 					normal := InterpolateNormal(
 						intersection_point,
-						vertices[tris[i]],
-						vertices[tris[i+1]],
-						vertices[tris[i+2]],
-						normals[i],
-						normals[i+1],
-						normals[i+2],
+						vertices[tris[t1]],
+						vertices[tris[t2]],
+						vertices[tris[t3]],
+						normals[t1],
+						normals[t2],
+						normals[t3],
 					)
 
 					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
@@ -176,6 +176,30 @@ func main() {
 					imgMutex.Unlock()
 					break
 				}
+
+				// for i := 0; i < len(tris); i += 3 {
+				// 	intersects, t := IntersectSegmentTriangle(rayPosition, rayDirection, stepSize, vertices[tris[i]], vertices[tris[i+1]], vertices[tris[i+2]])
+				// 	if !intersects {
+				// 		continue
+				// 	}
+
+				// 	intersection_point := rayPosition.Add(rayDirection.Scale(t))
+				// 	normal := InterpolateNormal(
+				// 		intersection_point,
+				// 		vertices[tris[i]],
+				// 		vertices[tris[i+1]],
+				// 		vertices[tris[i+2]],
+				// 		normals[i],
+				// 		normals[i+1],
+				// 		normals[i+2],
+				// 	)
+
+				// 	ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+				// 	imgMutex.Lock()
+				// 	targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
+				// 	imgMutex.Unlock()
+				// 	break
+				// }
 
 				rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
 			}

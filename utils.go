@@ -2,6 +2,10 @@ package main
 
 import "math"
 
+func Between(val, l, r float64) bool {
+	return l <= val && r >= val
+}
+
 func IntersectSegmentTriangle(origin, direction Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
 	const EPSILON = 1e-9 // Increased precision for better accuracy
 
