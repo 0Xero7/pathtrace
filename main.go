@@ -36,16 +36,16 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 512
-	height := 512
+	width := 768
+	height := 768
 
 	ambient := 0.12
-	maxSteps := 2
-	stepSize := 100.0
+	maxSteps := 1
+	stepSize := 1000.0
 
 	// Scene
 	camera := Camera{
-		Position:         Vec3{X: 0, Y: 4, Z: 7},
+		Position:         Vec3{X: -0.1, Y: 0.8, Z: 0},
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
@@ -56,9 +56,9 @@ func main() {
 		pixelBuffer[i] = make([]Pixel, width)
 	}
 
-	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 3)
+	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.2)
 	boxObj := Object{
-		Position: Vec3{Z: 10},
+		Position: Vec3{Z: 0},
 		Mesh:     *boxMesh,
 	}
 
@@ -66,7 +66,7 @@ func main() {
 		boxObj,
 	}
 
-	sunDirection := Vec3{X: 0, Y: 1, Z: -1}.Normalize()
+	sunDirection := Vec3{X: 0.1, Y: 1, Z: -0.6}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -177,6 +177,11 @@ func main() {
 					)
 
 					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
+					shadow, _, _ := bvh.CheckIntersection(intersection_point.Add(normal.Scale(0.01)), sunDirection, stepSize, vertices)
+					if shadow {
+						ndotr = ambient
+					}
+
 					rayColor := color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255}
 
 					// When a ray hits a pixel:
@@ -260,6 +265,11 @@ func main() {
 				totalTime += deltaTime
 
 				if dirty {
+					fmt.Println("Camera:")
+					fmt.Println("  Pos: ", camera.Position)
+					fmt.Println("Sun:")
+					fmt.Println("  Dir: ", sunDirection)
+
 					dirty = false
 					// Create a new image for this frame
 					img = image.NewRGBA(image.Rect(0, 0, width, height))
