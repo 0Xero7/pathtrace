@@ -40,13 +40,14 @@ func main() {
 	height := 512
 
 	bounces := 1
-	ambient := 0.12
+	scatterRays := 8
+	ambient := 0.1
 	maxSteps := 1
 	stepSize := 1000.0
 
 	// Scene
 	camera := Camera{
-		Position:         Vec3{X: -0.1, Y: 0.8, Z: 0},
+		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6},
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
@@ -57,7 +58,9 @@ func main() {
 		pixelBuffer[i] = make([]Pixel, width)
 	}
 
+	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
 	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.2)
+	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	boxObj := Object{
 		Position: Vec3{Z: 0},
 		Mesh:     *boxMesh,
@@ -67,7 +70,7 @@ func main() {
 		boxObj,
 	}
 
-	sunDirection := Vec3{X: 0.1, Y: 1, Z: -0.6}.Normalize()
+	sunDirection := Vec3{X: 0.08543576577167611, Y: 0.854357657716761, Z: -0.3126145946300566}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -165,7 +168,7 @@ func main() {
 				Z: rayOrigin.Z - camera.Position.Z,
 			}.Normalize()
 
-			rayColor := TraceRay(rayOrigin, rayDirection, stepSize, bvh, maxSteps, bounces, vertices, normals, ambient, sunDirection)
+			rayColor := TraceRay(ctx, camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, ambient, sunDirection)
 			// When a ray hits a pixel:
 			pixel := &pixelBuffer[pixelY][pixelX]
 			pixel.Lock.Lock()
