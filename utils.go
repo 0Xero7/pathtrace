@@ -6,11 +6,11 @@ func Between(val, l, r float64) bool {
 	return l <= val && r >= val
 }
 
-func IntersectSegmentTriangle(origin, direction Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
+func IntersectSegmentTriangle(origin, dir Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
 	const EPSILON = 1e-9 // Increased precision for better accuracy
 
 	// Normalize direction vector to ensure consistent distance calculations
-	direction = direction.Normalize()
+	direction := dir
 
 	// Find vectors for two edges sharing vertex A.
 	edge1 := B.Sub(A)

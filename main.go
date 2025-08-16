@@ -40,19 +40,19 @@ func main() {
 	height := 512
 
 	ambient := 0.12
-	maxSteps := 2000
-	stepSize := 0.01
+	maxSteps := 2
+	stepSize := 100.0
 
 	// Scene
 	camera := Camera{
-		Position:         Vec3{X: 0, Y: 0, Z: 0},
+		Position:         Vec3{X: 0, Y: 4, Z: 7},
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
 		FrustrumDistance: 1,
 	}
 
-	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\test.obj", 5)
+	boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 3)
 	boxObj := Object{
 		Position: Vec3{Z: 10},
 		Mesh:     *boxMesh,
@@ -62,7 +62,7 @@ func main() {
 		boxObj,
 	}
 
-	sunDirection := Vec3{X: 0, Y: 1, Z: 1}.Normalize()
+	sunDirection := Vec3{X: 0, Y: 1, Z: -1}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -120,8 +120,10 @@ func main() {
 	w.Show()
 
 	vertices, tris, normals := DecomposeObjects(scene)
+	// println(len(normals))
+
 	fmt.Println("BVH Building...")
-	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 5)
+	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 16, 48)
 	fmt.Println("BVH Built!")
 
 	calculate := func(ctx context.Context, targetImg *image.RGBA, imgMutex *sync.Mutex) {
@@ -157,17 +159,17 @@ func main() {
 					break
 				}
 
-				intersects, t, t1, t2, t3 := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices)
+				intersects, t, tri := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices)
 				if intersects {
 					intersection_point := rayPosition.Add(rayDirection.Scale(t))
 					normal := InterpolateNormal(
 						intersection_point,
-						vertices[tris[t1]],
-						vertices[tris[t2]],
-						vertices[tris[t3]],
-						normals[t1],
-						normals[t2],
-						normals[t3],
+						tri.A,
+						tri.B,
+						tri.C,
+						normals[tri.Index],
+						normals[tri.Index+1],
+						normals[tri.Index+2],
 					)
 
 					ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
@@ -177,13 +179,23 @@ func main() {
 					break
 				}
 
+				// min_t := stepSize + 1
 				// for i := 0; i < len(tris); i += 3 {
 				// 	intersects, t := IntersectSegmentTriangle(rayPosition, rayDirection, stepSize, vertices[tris[i]], vertices[tris[i+1]], vertices[tris[i+2]])
-				// 	if !intersects {
+				// 	if !intersects || t > min_t {
 				// 		continue
 				// 	}
 
+				// 	min_t = t
+
 				// 	intersection_point := rayPosition.Add(rayDirection.Scale(t))
+				// 	// A := vertices[tris[i]]
+				// 	// B := vertices[tris[i+1]]
+				// 	// C := vertices[tris[i+2]]
+				// 	// edge1 := B.Sub(A)
+				// 	// edge2 := C.Sub(A)
+				// 	// normal := edge1.Cross(edge2).Normalize()
+
 				// 	normal := InterpolateNormal(
 				// 		intersection_point,
 				// 		vertices[tris[i]],
@@ -198,7 +210,7 @@ func main() {
 				// 	imgMutex.Lock()
 				// 	targetImg.Set(pixelX, pixelY, color.RGBA{R: uint8(ndotr * 255), G: uint8(ndotr * 255), B: uint8(ndotr * 255), A: 255})
 				// 	imgMutex.Unlock()
-				// 	break
+				// 	// break
 				// }
 
 				rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
