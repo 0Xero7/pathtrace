@@ -46,11 +46,13 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *obj.Decoder, error) {
 		tris = append(tris, face.Vertices...)
 		mats = append(mats, object.Materials[face.Material])
 
-		for i := 0; i < 3; i++ {
-			uvIndex := face.Uvs[i]
-			u := tile(float64(object.Uvs[uvIndex*2]))   // X coordinate
-			v := tile(float64(object.Uvs[uvIndex*2+1])) // Y coordinate
-			uvs = append(uvs, u, v)
+		if len(object.Uvs) > 0 {
+			for i := range 3 {
+				uvIndex := face.Uvs[i]
+				u := tile(float64(object.Uvs[uvIndex*2]))   // X coordinate
+				v := tile(float64(object.Uvs[uvIndex*2+1])) // Y coordinate
+				uvs = append(uvs, u, v)
+			}
 		}
 
 		normals = append(normals, object_normals[face.Normals[0]])
