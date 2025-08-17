@@ -6,9 +6,10 @@ import (
 )
 
 type BVHTriangle struct {
-	A, B, C Vec3
-	X, Y, Z int
-	Index   int
+	A, B, C  Vec3
+	Centroid Vec3
+	X, Y, Z  int
+	Index    int
 }
 
 type Box struct {
@@ -125,13 +126,7 @@ func buildBVH(tris []BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int,
 			rightBox := Box{}
 
 			for _, tri := range tris {
-				cx := tri.A.X + tri.B.X + tri.C.X
-				cy := tri.A.Y + tri.B.Y + tri.C.Y
-				cz := tri.A.Z + tri.B.Z + tri.C.Z
-				cx /= 3
-				cy /= 3
-				cz /= 3
-				centroids := []float64{cx, cy, cz}
+				centroids := []float64{tri.Centroid.X, tri.Centroid.Y, tri.Centroid.Z}
 
 				if centroids[axis] < mid {
 					leftBox.Grow(tri)
@@ -174,15 +169,17 @@ func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float64, threshol
 		a := verts[tris[i]]
 		b := verts[tris[i+1]]
 		c := verts[tris[i+2]]
+		centroid := a.Add(b).Add(c).Scale(1.0 / 3.0)
 
 		triangles = append(triangles, BVHTriangle{
-			Index: i,
-			A:     a,
-			B:     b,
-			C:     c,
-			X:     tris[i],
-			Y:     tris[i+1],
-			Z:     tris[i+2],
+			Index:    i,
+			A:        a,
+			B:        b,
+			C:        c,
+			Centroid: centroid,
+			X:        tris[i],
+			Y:        tris[i+1],
+			Z:        tris[i+2],
 		})
 	}
 

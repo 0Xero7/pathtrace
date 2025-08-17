@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/png"
+	"log"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -27,20 +30,25 @@ func main() {
 
 	showStats := true
 
-	bounces := 1
-	scatterRays := 32
+	bounces := 0
+	scatterRays := 64
 	ambient := 0.1
 	maxSteps := 1
 	stepSize := 1000.0
 
 	// Scene
-	rotY := 0.0
-	rotX := 0.0
+	rotY := 180.0 * 0.0174533
+	rotX := 180.0 * 0.0174533
+
+	// rotY := 155.0 * 0.0174533
+	// rotX := 200.0 * 0.0174533
 	camera := Camera{
-		// Position: Vec3{X: -0.1, Y: 0.9, Z: -1.5},
+		// Position: Vec3{X: -1, Y: 2, Z: 2}, // 2b2
+		// Position: Vec3{X: 0, Y: 0, Z: -5},
+		// Position: Vec3{X: 0, Y: 0.8, Z: -3.2},
 		// Position: Vec3{X: -0.12574528163782742, Y: 2.2389967140962512, Z: 2.2364934252835065},
-		Position: Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
-		Forward:  Vec3{X: 0, Y: 0, Z: 1},
+		Position: Vec3{X: -0, Y: 0.9, Z: 0.65}, // <--- sponza
+		Forward:  Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
 		Right:    Vec3{X: 1, Y: 0, Z: 0},
 		Up:       Vec3{X: 0, Y: -1, Z: 0},
 		// Forward:          Vec3{X: -0.024214702328704055, Y: -0.5226872289306594, Z: -0.8521805612098416},
@@ -48,12 +56,16 @@ func main() {
 		// Up:               Vec3{X: 0.014846160235948829, Y: -0.8525245220595057, Z: 0.5224763447405635},
 		FrustrumDistance: 1,
 	}
+	camera.ApplyRotation(rotY, rotX)
+
 	pixelBuffer := make([][]Pixel, height)
 	for i := range pixelBuffer {
 		pixelBuffer[i] = make([]Pixel, width)
 	}
 
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B2.obj", 1)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Emissions.obj", 1)
 	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
@@ -68,7 +80,9 @@ func main() {
 		boxObj,
 	}
 
-	sunDirection := Vec3{X: 0.08543576577167611, Y: 0.854357657716761, Z: -0.3126145946300566}.Normalize() // <- sponza
+	// sunDirection := Vec3{X: -0.2, Y: 0.854357657716761, Z: 0.3126145946300566}.Normalize() // <- 2B
+	// sunDirection := Vec3{X: -0.2, Y: 0.854357657716761, Z: -5}.Normalize()
+	sunDirection := Vec3{X: 0.1, Y: 0.85, Z: 0.6}.Normalize() // <- sponza
 	// sunDirection := Vec3{X: 0.09349930860821053, Y: 0.9349930860821052, Z: 10.3421195818254895}.Normalize()
 
 	// Set up the window
@@ -148,6 +162,16 @@ func main() {
 
 		case fyne.KeyH:
 			showStats = !showStats
+
+		case fyne.KeySpace:
+			f, err := os.Create("img.png")
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+			if err = png.Encode(f, img); err != nil {
+				log.Printf("failed to encode: %v", err)
+			}
 		}
 	})
 
@@ -161,66 +185,72 @@ func main() {
 	fmt.Println("BVH Built!")
 	fmt.Println(bvh.GetStats(1))
 
-	calculate := func(targetImg *image.RGBA, imgMutex *sync.Mutex) {
+	calculate := func(targetImg *image.RGBA, imgMutex *sync.Mutex, tt *time.Ticker) {
 		for {
-			rx := rand.Float64()
-			ry := rand.Float64()
-			pixelX := int(math.Round(rx * float64(width-1)))
-			pixelY := int(math.Round(ry * float64(height-1)))
+			select {
+			case <-tt.C:
+				return
+			default:
+				rx := rand.Float64()
+				ry := rand.Float64()
+				pixelX := int(math.Round(rx * float64(width-1)))
+				pixelY := int(math.Round(ry * float64(height-1)))
 
-			// Bounds check
-			if pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height {
-				continue
+				// Bounds check
+				if pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height {
+					return
+				}
+
+				px := (rx - 0.5) * 2
+				py := (ry - 0.5) * 2
+				rayOrigin := camera.Position.Add(camera.Forward.Scale(camera.FrustrumDistance)).Add(camera.Up.Scale(py)).Add(camera.Right.Scale(px))
+				rayDirection := Vec3{
+					X: rayOrigin.X - camera.Position.X,
+					Y: rayOrigin.Y - camera.Position.Y,
+					Z: rayOrigin.Z - camera.Position.Z,
+				}.Normalize()
+
+				rayColor := TraceRay(camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
+				// When a ray hits a pixel:
+				pixel := &pixelBuffer[pixelY][pixelX]
+				pixel.Lock.Lock()
+
+				// Accumulate color
+				pixel.R += float64(rayColor.X)
+				pixel.G += float64(rayColor.Y)
+				pixel.B += float64(rayColor.Z)
+				pixel.SampleCount++
+
+				// Calculate running average
+				avgR := pixel.R / float64(pixel.SampleCount)
+				avgG := pixel.G / float64(pixel.SampleCount)
+				avgB := pixel.B / float64(pixel.SampleCount)
+				pixel.Lock.Unlock()
+
+				avgColor := Vec3{
+					X: avgR,
+					Y: avgG,
+					Z: avgB,
+				}.ToRGBA()
+
+				imgMutex.Lock()
+				// Update display
+				// targetImg.Set(pixelX, pixelY, color.RGBA{
+				// 	R: uint8(avgColor.X),
+				// 	G: uint8(avgColor.Y),
+				// 	B: uint8(avgColor.Z),
+				// 	A: 255,
+				// })
+				targetImg.Set(width-pixelX, pixelY, avgColor)
+				imgMutex.Unlock()
 			}
-
-			px := (rx - 0.5) * 2
-			py := (ry - 0.5) * 2
-			rayOrigin := camera.Position.Add(camera.Forward.Scale(camera.FrustrumDistance)).Add(camera.Up.Scale(py)).Add(camera.Right.Scale(px))
-			rayDirection := Vec3{
-				X: rayOrigin.X - camera.Position.X,
-				Y: rayOrigin.Y - camera.Position.Y,
-				Z: rayOrigin.Z - camera.Position.Z,
-			}.Normalize()
-
-			rayColor := TraceRay(camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
-			// When a ray hits a pixel:
-			pixel := &pixelBuffer[pixelY][pixelX]
-			pixel.Lock.Lock()
-
-			// Accumulate color
-			pixel.R += float64(rayColor.X)
-			pixel.G += float64(rayColor.Y)
-			pixel.B += float64(rayColor.Z)
-			pixel.SampleCount++
-
-			// Calculate running average
-			avgR := pixel.R / float64(pixel.SampleCount)
-			avgG := pixel.G / float64(pixel.SampleCount)
-			avgB := pixel.B / float64(pixel.SampleCount)
-			pixel.Lock.Unlock()
-
-			avgColor := Vec3{
-				X: avgR,
-				Y: avgG,
-				Z: avgB,
-			}.ToRGBA()
-
-			imgMutex.Lock()
-			// Update display
-			// targetImg.Set(pixelX, pixelY, color.RGBA{
-			// 	R: uint8(avgColor.X),
-			// 	G: uint8(avgColor.Y),
-			// 	B: uint8(avgColor.Z),
-			// 	A: 255,
-			// })
-			targetImg.Set(pixelX, pixelY, avgColor)
-			imgMutex.Unlock()
 		}
 	}
 
 	// Animation loop
 	totalTime := 0.0
 	timeStep := 500
+	lastTimeStep := time.Now().UnixMilli()
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * time.Duration(timeStep)) // ~60 FPS
 		defer ticker.Stop()
@@ -259,9 +289,8 @@ func main() {
 
 				// Render frame with multiple goroutines
 				var imgMutex sync.Mutex
-
 				for range threadCount {
-					go calculate(img, &imgMutex)
+					go calculate(img, &imgMutex, ticker)
 				}
 
 				// Update the display on the main UI thread
@@ -269,7 +298,11 @@ func main() {
 					newImage := canvas.NewImageFromImage(img)
 					newImage.FillMode = canvas.ImageFillOriginal
 
-					raysTracedCount := float64(raysTraced * 1000 / timeStep)
+					ts := time.Now().UnixMilli() - lastTimeStep + 1
+					raysTracedCount := float64(raysTraced.Load()) * 1000 / float64(ts)
+					raysTraced.Store(0)
+					lastTimeStep = time.Now().UnixMilli()
+
 					unit := ""
 					if raysTracedCount > 1e6 {
 						raysTracedCount /= 1e6
@@ -286,7 +319,6 @@ func main() {
 					if showStats {
 						container.Add(text)
 					}
-					raysTraced = 0
 
 					w.SetContent(container)
 				})

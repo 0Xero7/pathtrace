@@ -61,3 +61,7 @@ func (v Vec3) ToRGBA() color.RGBA {
 		A: 255,
 	}
 }
+
+func (v Vec3) ComponentMul(other Vec3) Vec3 {
+	return Vec3{X: v.X * other.X, Y: v.Y * other.Y, Z: v.Z * other.Z}
+}
