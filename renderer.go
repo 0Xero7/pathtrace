@@ -18,8 +18,11 @@ type Pixel struct {
 }
 
 var images map[string]*image.Image = map[string]*image.Image{}
+var imageLock sync.Mutex = sync.Mutex{}
 
 func Sample(path string, x, y float64) color.RGBA {
+	imageLock.Lock()
+
 	x = (math.Mod(float64(x), 1))
 	y = (math.Mod(float64(y), 1))
 
@@ -33,6 +36,7 @@ func Sample(path string, x, y float64) color.RGBA {
 
 		imag, _, err := image.Decode(file)
 		if err != nil {
+			fmt.Println("Error while decoding file")
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -46,6 +50,8 @@ func Sample(path string, x, y float64) color.RGBA {
 
 	col := (*img).At(int(float64(width)*x), int(float64(height)*y))
 	r, g, b, a := col.RGBA()
+	imageLock.Unlock()
+
 	return color.RGBA{
 		R: uint8(r),
 		G: uint8(g),

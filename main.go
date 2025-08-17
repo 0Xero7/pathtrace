@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -29,7 +28,7 @@ func main() {
 	showStats := true
 
 	bounces := 1
-	scatterRays := 8
+	scatterRays := 32
 	ambient := 0.1
 	maxSteps := 1
 	stepSize := 1000.0
@@ -38,11 +37,15 @@ func main() {
 	rotY := 0.0
 	rotX := 0.0
 	camera := Camera{
-		Position: Vec3{X: -0.1, Y: 0.9, Z: -1.5},
-		// Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
-		Forward:          Vec3{X: 0, Y: 0, Z: 1},
-		Right:            Vec3{X: 1, Y: 0, Z: 0},
-		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		// Position: Vec3{X: -0.1, Y: 0.9, Z: -1.5},
+		// Position: Vec3{X: -0.12574528163782742, Y: 2.2389967140962512, Z: 2.2364934252835065},
+		Position: Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
+		Forward:  Vec3{X: 0, Y: 0, Z: 1},
+		Right:    Vec3{X: 1, Y: 0, Z: 0},
+		Up:       Vec3{X: 0, Y: -1, Z: 0},
+		// Forward:          Vec3{X: -0.024214702328704055, Y: -0.5226872289306594, Z: -0.8521805612098416},
+		// Right:            Vec3{X: -0.9995965384680866, Y: 0, Z: 0.028403525883580263},
+		// Up:               Vec3{X: 0.014846160235948829, Y: -0.8525245220595057, Z: 0.5224763447405635},
 		FrustrumDistance: 1,
 	}
 	pixelBuffer := make([][]Pixel, height)
@@ -51,8 +54,9 @@ func main() {
 	}
 
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
-	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
-	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Emissions.obj", 1)
+	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
 	boxObj := Object{
@@ -65,7 +69,7 @@ func main() {
 	}
 
 	sunDirection := Vec3{X: 0.08543576577167611, Y: 0.854357657716761, Z: -0.3126145946300566}.Normalize() // <- sponza
-	// sunDirection := Vec3{X: 0.09349930860821053, Y: 0.9349930860821052, Z: -0.3421195818254895}.Normalize()
+	// sunDirection := Vec3{X: 0.09349930860821053, Y: 0.9349930860821052, Z: 10.3421195818254895}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -153,17 +157,12 @@ func main() {
 	println(len(materials))
 
 	fmt.Println("BVH Building...")
-	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 16, 48)
+	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 42)
 	fmt.Println("BVH Built!")
+	fmt.Println(bvh.GetStats(1))
 
-	calculate := func(ctx context.Context, targetImg *image.RGBA, imgMutex *sync.Mutex) {
-		done := false
-		go func() {
-			<-ctx.Done()
-			done = true
-		}()
-
-		for !done {
+	calculate := func(targetImg *image.RGBA, imgMutex *sync.Mutex) {
+		for {
 			rx := rand.Float64()
 			ry := rand.Float64()
 			pixelX := int(math.Round(rx * float64(width-1)))
@@ -183,15 +182,15 @@ func main() {
 				Z: rayOrigin.Z - camera.Position.Z,
 			}.Normalize()
 
-			rayColor := TraceRay(ctx, camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection)
+			rayColor := TraceRay(camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
 			// When a ray hits a pixel:
 			pixel := &pixelBuffer[pixelY][pixelX]
 			pixel.Lock.Lock()
 
 			// Accumulate color
-			pixel.R += float64(rayColor.R)
-			pixel.G += float64(rayColor.G)
-			pixel.B += float64(rayColor.B)
+			pixel.R += float64(rayColor.X)
+			pixel.G += float64(rayColor.Y)
+			pixel.B += float64(rayColor.Z)
 			pixel.SampleCount++
 
 			// Calculate running average
@@ -200,23 +199,30 @@ func main() {
 			avgB := pixel.B / float64(pixel.SampleCount)
 			pixel.Lock.Unlock()
 
+			avgColor := Vec3{
+				X: avgR,
+				Y: avgG,
+				Z: avgB,
+			}.ToRGBA()
+
 			imgMutex.Lock()
 			// Update display
-			targetImg.Set(pixelX, pixelY, color.RGBA{
-				R: uint8(avgR),
-				G: uint8(avgG),
-				B: uint8(avgB),
-				A: 255,
-			})
+			// targetImg.Set(pixelX, pixelY, color.RGBA{
+			// 	R: uint8(avgColor.X),
+			// 	G: uint8(avgColor.Y),
+			// 	B: uint8(avgColor.Z),
+			// 	A: 255,
+			// })
+			targetImg.Set(pixelX, pixelY, avgColor)
 			imgMutex.Unlock()
 		}
 	}
 
 	// Animation loop
 	totalTime := 0.0
-
+	timeStep := 500
 	go func() {
-		ticker := time.NewTicker(16 * time.Millisecond) // ~60 FPS
+		ticker := time.NewTicker(time.Millisecond * time.Duration(timeStep)) // ~60 FPS
 		defer ticker.Stop()
 
 		for {
@@ -228,8 +234,12 @@ func main() {
 				if dirty {
 					fmt.Println("Camera:")
 					fmt.Println("  Pos: ", camera.Position)
+					fmt.Println("  Fwd: ", camera.Forward)
+					fmt.Println("  Right: ", camera.Right)
+					fmt.Println("  Up: ", camera.Up)
 					fmt.Println("Sun:")
 					fmt.Println("  Dir: ", sunDirection)
+					fmt.Println("-----------------------------------")
 
 					dirty = false
 					// Create a new image for this frame
@@ -249,20 +259,27 @@ func main() {
 
 				// Render frame with multiple goroutines
 				var imgMutex sync.Mutex
-				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 
 				for range threadCount {
-					go calculate(ctx, img, &imgMutex)
+					go calculate(img, &imgMutex)
 				}
-				<-ctx.Done()
-				cancel()
 
 				// Update the display on the main UI thread
 				fyne.Do(func() {
 					newImage := canvas.NewImageFromImage(img)
 					newImage.FillMode = canvas.ImageFillOriginal
 
-					text := canvas.NewText(fmt.Sprintf("%d rays/s", raysTraced*1000/16), color.White)
+					raysTracedCount := float64(raysTraced * 1000 / timeStep)
+					unit := ""
+					if raysTracedCount > 1e6 {
+						raysTracedCount /= 1e6
+						unit = "M"
+					} else if raysTracedCount > 1e3 {
+						raysTracedCount /= 1e3
+						unit = "K"
+					}
+
+					text := canvas.NewText(fmt.Sprintf("%.1f %srays/s", raysTracedCount, unit), color.White)
 					text.TextSize = 10
 					bLayout := layout.NewStackLayout()
 					container := container.New(bLayout, newImage)

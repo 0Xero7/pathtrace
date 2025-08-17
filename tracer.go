@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"image/color"
 	"math"
 	"math/rand"
 
@@ -11,23 +9,13 @@ import (
 
 var raysTraced int = 0
 
-func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float64, bvh *Box, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*obj.Material, uvs []float64, ambient float64, sunDirection Vec3) color.RGBA {
-	done := false
-	go func() {
-		<-ctx.Done()
-		done = true
-	}()
-
+func TraceRay(rayOrigin, rayDirection Vec3, stepSize float64, bvh *Box, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*obj.Material, uvs []float64, ambient float64, sunDirection Vec3, indirectRay bool) Vec3 {
 	if bounces < 0 {
-		return color.RGBA{}
+		return Vec3{}
 	}
 
 	rayPosition := rayOrigin
 	for range maxSteps {
-		if done {
-			break
-		}
-
 		intersects, t, tri := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices, false)
 		if intersects {
 			intersection_point := rayPosition.Add(rayDirection.Scale(t))
@@ -42,23 +30,26 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 			).Normalize()
 
 			emissiveColor := materials[tri.Index/3].Emissive
-			if bounces >= 0 { // This is an indirect ray
+			if indirectRay { // This is an indirect ray
 				if emissiveColor.R > 0 || emissiveColor.G > 0 || emissiveColor.B > 0 {
+					distance := intersection_point.Sub(rayPosition).Length()
+					attenuation := 1.0 / (1.0 + distance*distance*0.01)
+					lightIntensity := attenuation
+
 					// Return emissive light directly for GI
-					return color.RGBA{
-						R: uint8(math.Min(255, float64(emissiveColor.R)*255*20)),
-						G: uint8(math.Min(255, float64(emissiveColor.G)*255*20)),
-						B: uint8(math.Min(255, float64(emissiveColor.B)*255*20)),
-						A: 255,
+					return Vec3{
+						X: float64(emissiveColor.R) * lightIntensity,
+						Y: float64(emissiveColor.G) * lightIntensity,
+						Z: float64(emissiveColor.B) * lightIntensity,
 					}
 				}
 			}
 
 			// Emissive surfaces glow regardless of lighting/shadows
 			emissiveContribution := Vec3{
-				X: float64(emissiveColor.R) * 255,
-				Y: float64(emissiveColor.G) * 255,
-				Z: float64(emissiveColor.B) * 255,
+				X: float64(emissiveColor.R),
+				Y: float64(emissiveColor.G),
+				Z: float64(emissiveColor.B),
 			}
 
 			diffuseColor := materials[tri.Index/3].Diffuse
@@ -127,13 +118,13 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 					Add(normal.Scale(z)).
 					Normalize()
 
-				contribution := TraceRay(ctx, intersection_point.Add(normal.Scale(0.001)), dir, stepSize, bvh, maxSteps, bounces-1, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection)
+				contribution := TraceRay(intersection_point.Add(normal.Scale(0.001)), dir, stepSize, bvh, maxSteps, bounces-1, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, true)
 				albedo := 1.0
 				lambert := dir.Dot(normal)
 
-				r := float64(contribution.R)
-				g := float64(contribution.G)
-				b := float64(contribution.B)
+				r := float64(contribution.X)
+				g := float64(contribution.Y)
+				b := float64(contribution.Z)
 
 				r = r * albedo * lambert
 				g = g * albedo * lambert
@@ -144,22 +135,19 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 			indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))
 
 			final := Vec3{
-				X: ndotr * float64(diffuseColor.R) * 255,
-				Y: ndotr * float64(diffuseColor.G) * 255,
-				Z: ndotr * float64(diffuseColor.B) * 255,
-			}.Add(indirectContribution.Scale(1.2)).Add(emissiveContribution)
-
-			final.X = math.Min(255, math.Max(ambient*255, final.X))
-			final.Y = math.Min(255, math.Max(ambient*255, final.Y))
-			final.Z = math.Min(255, math.Max(ambient*255, final.Z))
+				X: ndotr * float64(diffuseColor.R),
+				Y: ndotr * float64(diffuseColor.G),
+				Z: ndotr * float64(diffuseColor.B),
+			}.Add(indirectContribution.Scale(1)).Add(emissiveContribution)
 
 			raysTraced++
-			return color.RGBA{
-				R: uint8(final.X),
-				G: uint8(final.Y),
-				B: uint8(final.Z),
-				A: 255,
-			}
+			return final
+			// return color.RGBA{
+			// 	R: uint8(final.X),
+			// 	G: uint8(final.Y),
+			// 	B: uint8(final.Z),
+			// 	A: 255,
+			// }
 
 			// // === REFLECTION RAY ===
 			// // Calculate reflection direction: R = D - 2(D·N)N
@@ -183,18 +171,16 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 		rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
 	}
 
+	// return Vec3{}
 	// Hits the sky
 	angle := rayDirection.Dot(Vec3{Y: 1})
 	if angle < 0 {
-		return color.RGBA{R: uint8(76), G: uint8(76), B: uint8(76)}
+		return Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255)
 	}
 
-	horizonColor := Vec3{X: 200, Y: 230, Z: 255} // Light blue horizon
-	zenithColor := Vec3{X: 50, Y: 120, Z: 255}   // Deeper blue zenith
+	horizonColor := Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255) // Light blue horizon
+	zenithColor := Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255)   // Deeper blue zenith
 
 	skyColor := horizonColor.Scale(1.0 - angle).Add(zenithColor.Scale(angle))
-	r := skyColor.X
-	g := skyColor.Y
-	b := skyColor.Z
-	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255} // Sky color (light blue)
+	return skyColor
 }

@@ -126,3 +126,7 @@ func InterpolateNormal(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 	// It's crucial to re-normalize the result to ensure it's a valid unit vector.
 	return interpolatedNormal.Normalize()
 }
+
+func Clamp01(val float64) float64 {
+	return math.Max(0, math.Min(1, val))
+}
