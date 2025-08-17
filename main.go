@@ -38,8 +38,8 @@ func main() {
 	rotY := 0.0
 	rotX := 0.0
 	camera := Camera{
-		// Position: Vec3{X: -0.1, Y: 0.9, Z: -1.5},
-		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
+		Position: Vec3{X: -0.1, Y: 0.9, Z: -1.5},
+		// Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
@@ -51,8 +51,8 @@ func main() {
 	}
 
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
-	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
-	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
+	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
 	boxObj := Object{
