@@ -13,6 +13,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 )
 
 var threadCount = 16 // Number of goroutines to use for rendering
@@ -24,6 +26,8 @@ func main() {
 	width := 512
 	height := 512
 
+	showStats := false
+
 	bounces := 1
 	scatterRays := 8
 	ambient := 0.1
@@ -34,7 +38,7 @@ func main() {
 	rotY := 0.0
 	rotX := 0.0
 	camera := Camera{
-		// Position: Vec3{X: -0, Y: 0.9, Z: -2.5},
+		// Position: Vec3{X: -0, Y: 1, Z: -2.1},
 		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
@@ -47,8 +51,9 @@ func main() {
 	}
 
 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
-	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 0.3)
-	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
+	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
+	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
 	boxObj := Object{
 		Position: Vec3{Z: 0},
@@ -59,7 +64,8 @@ func main() {
 		boxObj,
 	}
 
-	sunDirection := Vec3{X: 0.08543576577167611, Y: 0.854357657716761, Z: -0.3126145946300566}.Normalize()
+	sunDirection := Vec3{X: 0.08543576577167611, Y: 0.854357657716761, Z: -0.3126145946300566}.Normalize() // <- sponza
+	// sunDirection := Vec3{X: 0.09349930860821053, Y: 0.9349930860821052, Z: -0.3421195818254895}.Normalize()
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -135,6 +141,9 @@ func main() {
 		case fyne.KeyRight:
 			sunDirection.X += 0.1
 			dirty = true
+
+		case fyne.KeyH:
+			showStats = !showStats
 		}
 	})
 
@@ -240,7 +249,7 @@ func main() {
 
 				// Render frame with multiple goroutines
 				var imgMutex sync.Mutex
-				ctx, cancel := context.WithTimeout(context.Background(), 128*time.Millisecond)
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 
 				for range threadCount {
 					go calculate(ctx, img, &imgMutex)
@@ -252,7 +261,17 @@ func main() {
 				fyne.Do(func() {
 					newImage := canvas.NewImageFromImage(img)
 					newImage.FillMode = canvas.ImageFillOriginal
-					w.SetContent(newImage)
+
+					text := canvas.NewText(fmt.Sprintf("%d rays/s", raysTraced*1000/16), color.White)
+					text.TextSize = 10
+					bLayout := layout.NewStackLayout()
+					container := container.New(bLayout, newImage)
+					if showStats {
+						container.Add(text)
+					}
+					raysTraced = 0
+
+					w.SetContent(container)
 				})
 
 			default:

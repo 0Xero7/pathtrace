@@ -9,6 +9,8 @@ import (
 	"github.com/g3n/engine/loader/obj"
 )
 
+var raysTraced int = 0
+
 func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float64, bvh *Box, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*obj.Material, uvs []float64, ambient float64, sunDirection Vec3) color.RGBA {
 	done := false
 	go func() {
@@ -38,6 +40,26 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 				normals[tri.Index+1],
 				normals[tri.Index+2],
 			).Normalize()
+
+			emissiveColor := materials[tri.Index/3].Emissive
+			if bounces >= 0 { // This is an indirect ray
+				if emissiveColor.R > 0 || emissiveColor.G > 0 || emissiveColor.B > 0 {
+					// Return emissive light directly for GI
+					return color.RGBA{
+						R: uint8(math.Min(255, float64(emissiveColor.R)*255*20)),
+						G: uint8(math.Min(255, float64(emissiveColor.G)*255*20)),
+						B: uint8(math.Min(255, float64(emissiveColor.B)*255*20)),
+						A: 255,
+					}
+				}
+			}
+
+			// Emissive surfaces glow regardless of lighting/shadows
+			emissiveContribution := Vec3{
+				X: float64(emissiveColor.R) * 255,
+				Y: float64(emissiveColor.G) * 255,
+				Z: float64(emissiveColor.B) * 255,
+			}
 
 			diffuseColor := materials[tri.Index/3].Diffuse
 
@@ -120,17 +142,18 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 				indirectContribution = indirectContribution.Add(Vec3{X: r, Y: g, Z: b})
 			}
 			indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))
-			// indirectContribution = indirectContribution.Scale()
 
 			final := Vec3{
 				X: ndotr * float64(diffuseColor.R) * 255,
 				Y: ndotr * float64(diffuseColor.G) * 255,
 				Z: ndotr * float64(diffuseColor.B) * 255,
-			}.Add(indirectContribution)
+			}.Add(indirectContribution.Scale(1.2)).Add(emissiveContribution)
 
 			final.X = math.Min(255, math.Max(ambient*255, final.X))
 			final.Y = math.Min(255, math.Max(ambient*255, final.Y))
 			final.Z = math.Min(255, math.Max(ambient*255, final.Z))
+
+			raysTraced++
 			return color.RGBA{
 				R: uint8(final.X),
 				G: uint8(final.Y),
