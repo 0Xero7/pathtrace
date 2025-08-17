@@ -1,10 +1,8 @@
 package main
 
 import (
-	"cmp"
 	"fmt"
 	"math"
-	"slices"
 )
 
 type BVHTriangle struct {
@@ -256,40 +254,41 @@ func (box Box) CheckIntersection(origin, direction Vec3, stepSize float64, verti
 	}
 
 	// Check children and return the closest intersection
+	// No children
+	if len(box.Children) == 0 {
+		return false, 0, nil
+	}
+
+	// One Child
+	if len(box.Children) == 1 {
+		return box.Children[0].CheckIntersection(origin, direction, stepSize, vertices, false)
+	}
+
+	// Two children
+	i, j := 0, 1
 	closest := math.MaxFloat64
-	var closestTriangle *BVHTriangle
-	found := false
-
-	children := make([]int, len(box.Children))
-	hitDistances := make([]float64, len(box.Children))
-	for i := range children {
-		children[i] = i
-		hitDistances[i] = box.Children[i].intersectAABB(origin, direction, stepSize)
-	}
-	slices.SortFunc(children, func(a, b int) int {
-		t_a := hitDistances[a]
-		t_b := hitDistances[b]
-
-		return cmp.Compare(t_a, t_b)
-	})
-	for _, child := range children {
-		if hitDistances[child] > closest {
-			break
-		}
-		if hitDistances[child] == math.MaxFloat64 {
-			continue
-		}
-
-		intersects, t, tri := box.Children[child].CheckIntersection(origin, direction, stepSize, vertices, true)
-		if intersects && t < closest && t > 0 {
-			closest = t
-			closestTriangle = tri
-			found = true
-		}
+	distI := box.Children[0].intersectAABB(origin, direction, stepSize)
+	distJ := box.Children[1].intersectAABB(origin, direction, stepSize)
+	if distI > distJ {
+		i, j = 1, 0
+		distJ = distI
 	}
 
-	if found {
-		return true, closest, closestTriangle
+	intersects, t, tri := box.Children[i].CheckIntersection(origin, direction, stepSize, vertices, false)
+	if intersects && t > 0 {
+		closest = t
 	}
-	return false, 0, nil
+	if distJ > closest || distJ == math.MaxFloat64 {
+		return intersects, t, tri
+	}
+
+	intersects2, t2, tri2 := box.Children[j].CheckIntersection(origin, direction, stepSize, vertices, true)
+	if intersects2 && t2 > 0 && t2 < closest {
+		return intersects2, t2, tri2
+	}
+	if !intersects && !intersects2 {
+		return false, 0, nil
+	}
+
+	return intersects, t, tri
 }
