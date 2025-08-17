@@ -254,11 +254,6 @@ func (box Box) CheckIntersection(origin, direction Vec3, stepSize float64, verti
 	}
 
 	// Check children and return the closest intersection
-	// No children
-	if len(box.Children) == 0 {
-		return false, 0, nil
-	}
-
 	// One Child
 	if len(box.Children) == 1 {
 		return box.Children[0].CheckIntersection(origin, direction, stepSize, vertices, false)
