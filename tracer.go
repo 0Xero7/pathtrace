@@ -28,7 +28,7 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 			break
 		}
 
-		intersects, t, tri := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices)
+		intersects, t, tri := bvh.CheckIntersection(rayPosition, rayDirection, stepSize, vertices, false)
 		if intersects {
 			intersection_point := rayPosition.Add(rayDirection.Scale(t))
 			normal := InterpolateNormal(
@@ -97,7 +97,7 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 			}
 
 			ndotr := math.Min(1.0, math.Max(ambient, normal.Dot(sunDirection)))
-			shadow, _, _ := bvh.CheckIntersection(intersection_point.Add(normal.Scale(0.001)), sunDirection, stepSize, vertices)
+			shadow, _, _ := bvh.CheckIntersection(intersection_point.Add(normal.Scale(0.001)), sunDirection, stepSize, vertices, false)
 			if shadow {
 				ndotr = ambient
 			}

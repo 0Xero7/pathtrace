@@ -26,7 +26,7 @@ func main() {
 	width := 512
 	height := 512
 
-	showStats := false
+	showStats := true
 
 	bounces := 1
 	scatterRays := 8
@@ -38,7 +38,7 @@ func main() {
 	rotY := 0.0
 	rotX := 0.0
 	camera := Camera{
-		// Position: Vec3{X: -0, Y: 1, Z: -2.1},
+		// Position: Vec3{X: -0.1, Y: 0.9, Z: -1.5},
 		Position:         Vec3{X: -0, Y: 0.9, Z: 0.6}, // <--- sponza
 		Forward:          Vec3{X: 0, Y: 0, Z: 1},
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
