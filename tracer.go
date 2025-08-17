@@ -102,7 +102,8 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 				// Transform to world space
 				dir = tangent1.Scale(x).
 					Add(tangent2.Scale(y)).
-					Add(normal.Scale(z))
+					Add(normal.Scale(z)).
+					Normalize()
 
 				contribution := TraceRay(ctx, intersection_point.Add(normal.Scale(0.001)), dir, stepSize, bvh, maxSteps, bounces-1, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection)
 				albedo := 1.0
@@ -159,5 +160,18 @@ func TraceRay(ctx context.Context, rayOrigin, rayDirection Vec3, stepSize float6
 		rayPosition = rayPosition.Add(rayDirection.Scale(stepSize))
 	}
 
-	return color.RGBA{}
+	// Hits the sky
+	angle := rayDirection.Dot(Vec3{Y: 1})
+	if angle < 0 {
+		return color.RGBA{R: uint8(76), G: uint8(76), B: uint8(76)}
+	}
+
+	horizonColor := Vec3{X: 200, Y: 230, Z: 255} // Light blue horizon
+	zenithColor := Vec3{X: 50, Y: 120, Z: 255}   // Deeper blue zenith
+
+	skyColor := horizonColor.Scale(1.0 - angle).Add(zenithColor.Scale(angle))
+	r := skyColor.X
+	g := skyColor.Y
+	b := skyColor.Z
+	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255} // Sky color (light blue)
 }
