@@ -4,8 +4,6 @@ import (
 	"math"
 	"math/rand"
 	"sync/atomic"
-
-	"github.com/g3n/engine/math32"
 )
 
 var raysTraced atomic.Int64 = atomic.Int64{}
@@ -95,7 +93,6 @@ func HandleDiffuseMaterial(
 
 	// Get base diffuse color (albedo)
 	diffuseColor := material.Diffuse
-	diffuseColor = math32.Color{R: 1.0, G: 1.0, B: 1.0}
 
 	// Calculate UV coordinates
 	triangleIndex := tri.Index / 3
@@ -129,9 +126,13 @@ func HandleDiffuseMaterial(
 		sampledColor := SampleDiffuseMap(material.MapKd, x, y)
 
 		// Convert from sRGB to linear space for lighting calculations
-		diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 1.0))
-		diffuseColor.G = float32(math.Pow(float64(sampledColor.G)/255.0, 1.0))
-		diffuseColor.B = float32(math.Pow(float64(sampledColor.B)/255.0, 1.0))
+		// diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 2.2))
+		// diffuseColor.G = float32(math.Pow(float64(sampledColor.G)/255.0, 2.2))
+		// diffuseColor.B = float32(math.Pow(float64(sampledColor.B)/255.0, 2.2))
+
+		diffuseColor.R = float32(sampledColor.R) / 255.0
+		diffuseColor.G = float32(sampledColor.G) / 255.0
+		diffuseColor.B = float32(sampledColor.B) / 255.0
 	}
 
 	// Sample bump map if available
@@ -151,7 +152,7 @@ func HandleDiffuseMaterial(
 	ambientContribution := albedo.Scale(ambient)
 
 	// Calculate direct lighting
-	ndotr := math.Max(ambient, normal.Dot(sunDirection.Normalize())) * 1
+	ndotr := math.Max(ambient, normal.Dot(sunDirection.Normalize()))
 	if ndotr > 0 {
 		ray := NewRay(intersection_point.Add(normal.Scale(0.001)), sunDirection)
 		shadow, _, _ := bvh.CheckIntersection(ray, stepSize, vertices)
@@ -199,7 +200,7 @@ func HandleDiffuseMaterial(
 
 			// Apply albedo to incoming light, not as multiplication
 			contribution._ComponentMul(albedo)
-			contribution._Scale(math.Pi)
+			contribution._Scale(1.0) // <--- this was pi
 			indirectContribution._Add(contribution)
 		}
 		indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))

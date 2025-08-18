@@ -89,9 +89,9 @@ func (v *Vec3) _Cross(other Vec3) {
 }
 
 func (v Vec3) ToRGBA() color.RGBA {
-	r := Clamp01(v.X) * 255
-	g := Clamp01(v.Y) * 255
-	b := Clamp01(v.Z) * 255
+	r := Clamp01(math.Sqrt(max(0.0, v.X))) * 255
+	g := Clamp01(math.Sqrt(max(0.0, v.Y))) * 255
+	b := Clamp01(math.Sqrt(max(0.0, v.Z))) * 255
 
 	return color.RGBA{
 		R: uint8(r),
