@@ -1,6 +1,11 @@
 package main
 
-import "math"
+import (
+	"fmt"
+	"image"
+	"math"
+	"os"
+)
 
 func tile(val float64) float64 {
 	i, f := math.Modf(val)
@@ -18,6 +23,32 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 
 	for _, m := range object.Warnings {
 		println(m)
+	}
+
+	// Load images
+	for _, mat := range object.Materials {
+		imagList := []string{mat.MapBump, mat.MapKd}
+
+		for _, texPath := range imagList {
+			if texPath == "" {
+				continue
+			} else {
+				file, err := os.Open(texPath)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
+				imag, _, err := image.Decode(file)
+				if err != nil {
+					fmt.Println("Error while decoding file")
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
+				images[texPath] = &imag
+			}
+		}
 	}
 
 	if err != nil {

@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"math"
-	"os"
 	"sync"
 )
 
@@ -16,39 +14,14 @@ type Pixel struct {
 }
 
 var images map[string]*image.Image = map[string]*image.Image{}
-var imageLock sync.Mutex = sync.Mutex{}
 
 func SampleDiffuseMap(path string, x, y float64) color.RGBA {
-	imageLock.Lock()
-
-	x = (math.Mod(float64(x), 1))
-	y = (math.Mod(float64(y), 1))
-
-	img, found := images[path]
-	if !found {
-		file, err := os.Open(path)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		imag, _, err := image.Decode(file)
-		if err != nil {
-			fmt.Println("Error while decoding file")
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		images[path] = &imag
-		img = &imag
-	}
-
+	img := images[path]
 	width := (*img).Bounds().Dx()
 	height := (*img).Bounds().Dy()
 
 	col := (*img).At(int(float64(width)*x), int(float64(height)*y))
 	r, g, b, a := col.RGBA()
-	imageLock.Unlock()
 
 	return color.RGBA{
 		R: uint8(r),
@@ -59,12 +32,8 @@ func SampleDiffuseMap(path string, x, y float64) color.RGBA {
 }
 
 func SampleBumpMap(path string, x, y float64, strength float64) Vec3 {
-	if path == "" {
-		return Vec3{X: 0, Y: 0, Z: 1}
-	}
-
-	x = (math.Mod(float64(x), 1))
-	y = (math.Mod(float64(y), 1))
+	// x = (math.Mod(float64(x), 1))
+	// y = (math.Mod(float64(y), 1))
 
 	// Sample current pixel and neighbors for gradient calculation
 	center := SampleDiffuseMap(path, x, y)
@@ -175,56 +144,6 @@ func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriang
 	}
 
 	// Transform the tangent space normal to world space
-	worldSpaceNormal := Vec3{
-		X: tangentNormal.X*tangent.X + tangentNormal.Y*bitangent.X + tangentNormal.Z*worldNormal.X,
-		Y: tangentNormal.X*tangent.Y + tangentNormal.Y*bitangent.Y + tangentNormal.Z*worldNormal.Y,
-		Z: tangentNormal.X*tangent.Z + tangentNormal.Y*bitangent.Z + tangentNormal.Z*worldNormal.Z,
-	}
-
-	return worldSpaceNormal.Normalize()
-}
-
-func TransformNormalToWorldSpace2(tangentNormal, worldNormal Vec3, tri *BVHTriangle, intersection_point Vec3, uvs []float64) Vec3 {
-	if tangentNormal.X == 0 && tangentNormal.Y == 0 && tangentNormal.Z == 1 {
-		return worldNormal // No normal map, use geometric normal
-	}
-
-	// Calculate tangent and bitangent vectors
-	// Edge vectors
-	edge1 := tri.B.Sub(tri.A)
-	edge2 := tri.C.Sub(tri.A)
-
-	// UV differences
-	triangleIndex := tri.Index / 3
-	baseUVIndex := triangleIndex * 6
-
-	uv0_x, uv0_y := uvs[baseUVIndex], uvs[baseUVIndex+1]
-	uv1_x, uv1_y := uvs[baseUVIndex+2], uvs[baseUVIndex+3]
-	uv2_x, uv2_y := uvs[baseUVIndex+4], uvs[baseUVIndex+5]
-
-	deltaUV1 := Vec3{X: uv1_x - uv0_x, Y: uv1_y - uv0_y, Z: 0}
-	deltaUV2 := Vec3{X: uv2_x - uv0_x, Y: uv2_y - uv0_y, Z: 0}
-
-	// Calculate tangent and bitangent
-	f := 1.0 / (deltaUV1.X*deltaUV2.Y - deltaUV2.X*deltaUV1.Y)
-
-	tangent := Vec3{
-		X: f * (deltaUV2.Y*edge1.X - deltaUV1.Y*edge2.X),
-		Y: f * (deltaUV2.Y*edge1.Y - deltaUV1.Y*edge2.Y),
-		Z: f * (deltaUV2.Y*edge1.Z - deltaUV1.Y*edge2.Z),
-	}.Normalize()
-
-	bitangent := Vec3{
-		X: f * (-deltaUV2.X*edge1.X + deltaUV1.X*edge2.X),
-		Y: f * (-deltaUV2.X*edge1.Y + deltaUV1.X*edge2.Y),
-		Z: f * (-deltaUV2.X*edge1.Z + deltaUV1.X*edge2.Z),
-	}.Normalize()
-
-	// Make sure our coordinate system is orthogonal
-	bitangent = worldNormal.Cross(tangent).Normalize()
-	tangent = bitangent.Cross(worldNormal).Normalize()
-
-	// Transform tangent space normal to world space
 	worldSpaceNormal := Vec3{
 		X: tangentNormal.X*tangent.X + tangentNormal.Y*bitangent.X + tangentNormal.Z*worldNormal.X,
 		Y: tangentNormal.X*tangent.Y + tangentNormal.Y*bitangent.Y + tangentNormal.Z*worldNormal.Y,

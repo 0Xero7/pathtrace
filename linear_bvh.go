@@ -119,7 +119,7 @@ func (box *LinearBVH) CheckIntersection(ray *Ray, stepSize float64, vertices []V
 		} else {
 			firstChildDistance := box.Nodes[ptr+1].intersectAABB(ray, best_t)
 			if node.SecondChildOffset == 0 { // Only one child!
-				if firstChildDistance < math.MaxFloat64 {
+				if firstChildDistance < best_t {
 					stack[nptr] = ptr + 1
 					nptr++
 				}
@@ -134,7 +134,7 @@ func (box *LinearBVH) CheckIntersection(ray *Ray, stepSize float64, vertices []V
 					continue
 				}
 
-				if secondChildDistance < math.MaxFloat64 {
+				if secondChildDistance < best_t {
 					stack[nptr] = j
 					nptr++
 				}
