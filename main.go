@@ -183,9 +183,10 @@ func main() {
 	println(len(materials))
 
 	fmt.Println("BVH Building...")
-	bvh := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 42)
+	bvhx := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 42)
 	fmt.Println("BVH Built!")
-	fmt.Println(bvh.GetStats(1))
+	fmt.Println(bvhx.GetStats(1))
+	linearBVH := ConstructLinearBVH(bvhx)
 
 	startTime := time.Now().UnixMilli()
 	splitsX := 4
@@ -279,7 +280,7 @@ func main() {
 				}.Normalize()
 
 				ray := NewRay(camera.Position, rayDirection)
-				rayColor := TraceRay(ray, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
+				rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
 				// When a ray hits a pixel:
 				pixel := &pixelBuffer[pixelY][pixelX]
 				pixel.Lock.Lock()

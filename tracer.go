@@ -10,10 +10,10 @@ import (
 
 var raysTraced atomic.Int64 = atomic.Int64{}
 
-func TraceRay(ray *Ray, stepSize float64, bvh *Box, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*Material, uvs []float64, ambient float64, sunDirection Vec3, indirectRay bool) Vec3 {
+func TraceRay(ray *Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*Material, uvs []float64, ambient float64, sunDirection Vec3, indirectRay bool) Vec3 {
 	rayPosition := ray.Origin
 	for range maxSteps {
-		intersects, t, tri := bvh.CheckIntersection(ray, stepSize, vertices, false)
+		intersects, t, tri := bvh.CheckIntersection(ray, stepSize, vertices)
 		if intersects {
 			intersection_point := rayPosition.Add(ray.Direction.Scale(t))
 			normal := InterpolateNormal(
@@ -65,7 +65,7 @@ func TraceRay(ray *Ray, stepSize float64, bvh *Box, maxSteps, bounces, scatterRa
 func HandleDiffuseMaterial(
 	ray *Ray,
 	stepSize float64,
-	bvh *Box,
+	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
 	vertices, normals []Vec3,
 	materials []*Material,
@@ -154,7 +154,7 @@ func HandleDiffuseMaterial(
 	ndotr := math.Max(ambient, normal.Dot(sunDirection.Normalize())) * 1
 	if ndotr > 0 {
 		ray := NewRay(intersection_point.Add(normal.Scale(0.001)), sunDirection)
-		shadow, _, _ := bvh.CheckIntersection(ray, stepSize, vertices, false)
+		shadow, _, _ := bvh.CheckIntersection(ray, stepSize, vertices)
 		if shadow {
 			ndotr = 0.0
 		}
@@ -225,7 +225,7 @@ func HandleDiffuseMaterial(
 func HandleReflectiveMaterial(
 	rayOrigin, rayDirection Vec3,
 	stepSize float64,
-	bvh *Box,
+	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
 	vertices, normals []Vec3,
 	materials []*Material,
