@@ -303,16 +303,9 @@ func main() {
 					Z: avgB,
 				}.ToRGBA()
 
-				imgMutex.Lock()
-				// Update display
-				// targetImg.Set(pixelX, pixelY, color.RGBA{
-				// 	R: uint8(avgColor.X),
-				// 	G: uint8(avgColor.Y),
-				// 	B: uint8(avgColor.Z),
-				// 	A: 255,
-				// })
+				// imgMutex.Lock()
 				targetImg.Set(width-pixelX, pixelY, avgColor)
-				imgMutex.Unlock()
+				// imgMutex.Unlock()
 			}
 		}
 	}
