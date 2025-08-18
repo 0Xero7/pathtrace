@@ -12,17 +12,36 @@ type BVHTriangle struct {
 	Index    int
 }
 
+type Ray struct {
+	Origin    Vec3
+	Direction Vec3
+	// inverseDirection Vec3
+}
+
+func NewRay(origin, direction Vec3) *Ray {
+	// inverseDirection := Vec3{
+	// 	X: 1.0 / direction.X,
+	// 	Y: 1.0 / direction.Y,
+	// 	Z: 1.0 / direction.Z,
+	// }
+	return &Ray{
+		Origin:    origin,
+		Direction: direction,
+		// inverseDirection: inverseDirection,
+	}
+}
+
 type Box struct {
 	X1, X2 float64
 	Y1, Y2 float64
 	Z1, Z2 float64
 
 	IsLeaf   bool
-	Trianges []BVHTriangle
-	Children []Box
+	Trianges []*BVHTriangle
+	Children []*Box
 }
 
-func (b *Box) Grow(tri BVHTriangle) {
+func (b *Box) Grow(tri *BVHTriangle) {
 	if len(b.Trianges) == 0 {
 		b.X1 = min(tri.A.X, tri.B.X, tri.C.X)
 		b.X2 = max(tri.A.X, tri.B.X, tri.C.X)
@@ -57,19 +76,6 @@ func (b BVHStats) String() string {
 	return fmt.Sprintf("MaxDepth: %d\nMinTris: %d\nMaxTris: %d\nTotalNodes: %d\nTotalTriangles: %d\n", b.MaxDepth, b.MinTris, b.MaxTris, b.TotalNodes, b.TotalTriangles)
 }
 
-func triangleIntersectsBox(v1, v2, v3 Vec3, x1, x2, y1, y2, z1, z2 float64) bool {
-	// Get triangle's bounding box
-	minX := math.Min(math.Min(v1.X, v2.X), v3.X)
-	maxX := math.Max(math.Max(v1.X, v2.X), v3.X)
-	minY := math.Min(math.Min(v1.Y, v2.Y), v3.Y)
-	maxY := math.Max(math.Max(v1.Y, v2.Y), v3.Y)
-	minZ := math.Min(math.Min(v1.Z, v2.Z), v3.Z)
-	maxZ := math.Max(math.Max(v1.Z, v2.Z), v3.Z)
-
-	// Check if bounding boxes overlap
-	return !(maxX < x1 || minX > x2 || maxY < y1 || minY > y2 || maxZ < z1 || minZ > z2)
-}
-
 func (box Box) GetStats(depth int) BVHStats {
 	if box.IsLeaf {
 		return BVHStats{
@@ -99,7 +105,7 @@ func (box Box) GetStats(depth int) BVHStats {
 	return temp
 }
 
-func buildBVH(tris []BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int, depth int, parentCost float64) *Box {
+func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int, depth int, parentCost float64) *Box {
 	box := new(Box)
 	box.X1, box.X2, box.Y1, box.Y2, box.Z1, box.Z2 = x1, x2, y1, y2, z1, z2
 
@@ -155,23 +161,23 @@ func buildBVH(tris []BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int,
 	childB = buildBVH(bestRightBox.Trianges, bestRightBox.X1, bestRightBox.X2, bestRightBox.Y1, bestRightBox.Y2, bestRightBox.Z1, bestRightBox.Z2, threshold, depth-1, bestCost)
 
 	if childA != nil {
-		box.Children = append(box.Children, *childA)
+		box.Children = append(box.Children, childA)
 	}
 	if childB != nil {
-		box.Children = append(box.Children, *childB)
+		box.Children = append(box.Children, childB)
 	}
 	return box
 }
 
 func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float64, threshold int, depth int) *Box {
-	triangles := make([]BVHTriangle, 0)
+	triangles := make([]*BVHTriangle, 0)
 	for i := 0; i < len(tris); i += 3 {
 		a := verts[tris[i]]
 		b := verts[tris[i+1]]
 		c := verts[tris[i+2]]
 		centroid := a.Add(b).Add(c).Scale(1.0 / 3.0)
 
-		triangles = append(triangles, BVHTriangle{
+		triangles = append(triangles, &BVHTriangle{
 			Index:    i,
 			A:        a,
 			B:        b,
@@ -186,60 +192,63 @@ func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float64, threshol
 	return buildBVH(triangles, x1, x2, y1, y2, z1, z2, threshold, depth, math.MaxFloat64)
 }
 
-func (box Box) intersectAABB(origin, direction Vec3, stepSize float64) float64 {
-	min := []float64{box.X1, box.Y1, box.Z1}
-	max := []float64{box.X2, box.Y2, box.Z2}
-	ray_origin := []float64{origin.X, origin.Y, origin.Z}
-	dir := []float64{direction.X, direction.Y, direction.Z}
+func (box *Box) intersectAABB(ray *Ray, stepSize float64) float64 {
+	inverseDirectionX := 1.0 / ray.Direction.X
+	inverseDirectionY := 1.0 / ray.Direction.Y
+	inverseDirectionZ := 1.0 / ray.Direction.Z
 
-	tMin := 0.0
-	tMax := stepSize
-	eplison := 1e-9
+	// Unrolled loop - no arrays!
+	t1 := (box.X1 - ray.Origin.X) * inverseDirectionX
+	t2 := (box.X2 - ray.Origin.X) * inverseDirectionX
 
-	for i := range 3 {
-		if math.Abs(dir[i]) < eplison {
-			if ray_origin[i] < min[i] || ray_origin[i] > max[i] {
-				return math.MaxFloat64
-			}
-		} else {
-			t1 := (min[i] - ray_origin[i]) / dir[i]
-			t2 := (max[i] - ray_origin[i]) / dir[i]
+	tMin := min(t1, t2)
+	tMax := max(t1, t2)
 
-			if t1 > t2 {
-				t1, t2 = t2, t1
-			}
+	t1 = (box.Y1 - ray.Origin.Y) * inverseDirectionY
+	t2 = (box.Y2 - ray.Origin.Y) * inverseDirectionY
 
-			// Update the overall intersection interval
-			tMin = math.Max(tMin, t1)
-			tMax = math.Min(tMax, t2)
+	tMin = max(tMin, min(t1, t2))
+	tMax = min(tMax, max(t1, t2))
 
-			// Exit early if the interval is invalid
-			if tMin > tMax {
-				return math.MaxFloat64
-			}
-		}
+	if tMin > tMax {
+		return math.MaxFloat64
 	}
 
-	return tMin
+	t1 = (box.Z1 - ray.Origin.Z) * inverseDirectionZ
+	t2 = (box.Z2 - ray.Origin.Z) * inverseDirectionZ
+
+	tMin = max(tMin, min(t1, t2))
+	tMax = min(tMax, max(t1, t2))
+
+	if tMin > tMax || tMax < 0 {
+		return math.MaxFloat64
+	}
+
+	// Clamp to stepSize
+	if tMin > stepSize {
+		return math.MaxFloat64
+	}
+
+	return max(0, tMin)
 }
 
-func (box Box) CheckIntersection(origin, direction Vec3, stepSize float64, vertices []Vec3, knownIntersects bool) (bool, float64, *BVHTriangle) {
+func (box *Box) CheckIntersection(ray *Ray, stepSize float64, vertices []Vec3, knownIntersects bool) (bool, float64, *BVHTriangle) {
 	if !knownIntersects {
-		if box.intersectAABB(origin, direction, stepSize) == math.MaxFloat64 {
+		if box.intersectAABB(ray, stepSize) == math.MaxFloat64 {
 			return false, 0, nil
 		}
 	}
 
 	if box.IsLeaf {
-		closest := math.Inf(1)
+		closest := math.MaxFloat64
 		var closestTriangle *BVHTriangle
 		found := false
 
 		for _, tri := range box.Trianges {
-			intersects, t := IntersectSegmentTriangle(origin, direction, stepSize, tri.A, tri.B, tri.C)
+			intersects, t := IntersectSegmentTriangle(ray.Origin, ray.Direction, stepSize, tri.A, tri.B, tri.C)
 			if intersects && t < closest && t > 0 { // Make sure t > 0 (in front of ray)
 				closest = t
-				closestTriangle = &tri
+				closestTriangle = tri
 				found = true
 			}
 		}
@@ -253,20 +262,20 @@ func (box Box) CheckIntersection(origin, direction Vec3, stepSize float64, verti
 	// Check children and return the closest intersection
 	// One Child
 	if len(box.Children) == 1 {
-		return box.Children[0].CheckIntersection(origin, direction, stepSize, vertices, false)
+		return box.Children[0].CheckIntersection(ray, stepSize, vertices, false)
 	}
 
 	// Two children
 	i, j := 0, 1
 	closest := math.MaxFloat64
-	distI := box.Children[0].intersectAABB(origin, direction, stepSize)
-	distJ := box.Children[1].intersectAABB(origin, direction, stepSize)
+	distI := box.Children[0].intersectAABB(ray, stepSize)
+	distJ := box.Children[1].intersectAABB(ray, stepSize)
 	if distI > distJ {
 		i, j = 1, 0
 		distJ = distI
 	}
 
-	intersects, t, tri := box.Children[i].CheckIntersection(origin, direction, stepSize, vertices, false)
+	intersects, t, tri := box.Children[i].CheckIntersection(ray, stepSize, vertices, false)
 	if intersects && t > 0 {
 		closest = t
 	}
@@ -274,7 +283,7 @@ func (box Box) CheckIntersection(origin, direction Vec3, stepSize float64, verti
 		return intersects, t, tri
 	}
 
-	intersects2, t2, tri2 := box.Children[j].CheckIntersection(origin, direction, stepSize, vertices, true)
+	intersects2, t2, tri2 := box.Children[j].CheckIntersection(ray, stepSize, vertices, true)
 	if intersects2 && t2 > 0 && t2 < closest {
 		return intersects2, t2, tri2
 	}

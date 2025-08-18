@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -198,6 +199,19 @@ func main() {
 
 	randomSampling := false
 
+	cpuFile, err := os.Create("cpu.prof")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cpuFile.Close()
+
+	pprof.StartCPUProfile(cpuFile)
+
+	go func() {
+		time.Sleep(30 * time.Second)
+		pprof.StopCPUProfile()
+	}()
+
 	calculate := func(targetImg *image.RGBA, imgMutex *sync.Mutex, tt *time.Ticker) {
 		for {
 			select {
@@ -264,7 +278,8 @@ func main() {
 					Z: rayOrigin.Z - camera.Position.Z,
 				}.Normalize()
 
-				rayColor := TraceRay(camera.Position, rayDirection, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
+				ray := NewRay(camera.Position, rayDirection)
+				rayColor := TraceRay(ray, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
 				// When a ray hits a pixel:
 				pixel := &pixelBuffer[pixelY][pixelX]
 				pixel.Lock.Lock()

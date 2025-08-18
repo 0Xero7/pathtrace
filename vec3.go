@@ -10,22 +10,45 @@ type Vec3 struct {
 }
 
 func (v Vec3) Ones() Vec3 {
-	return Vec3{X: 1, Y: 1, Z: 1}
+	v.X, v.Y, v.Z = 1, 1, 1
+	return v
+}
+
+func (v Vec3) Clone() Vec3 {
+	return v
 }
 
 func (v Vec3) Add(other Vec3) Vec3 {
-	return Vec3{X: v.X + other.X, Y: v.Y + other.Y, Z: v.Z + other.Z}
+	v._Add(other)
+	return v
+}
+func (v *Vec3) _Add(other Vec3) {
+	v.X += other.X
+	v.Y += other.Y
+	v.Z += other.Z
 }
 
 func (v Vec3) Sub(other Vec3) Vec3 {
-	return Vec3{X: v.X - other.X, Y: v.Y - other.Y, Z: v.Z - other.Z}
+	v._Sub(other)
+	return v
+}
+func (v *Vec3) _Sub(other Vec3) {
+	v.X -= other.X
+	v.Y -= other.Y
+	v.Z -= other.Z
 }
 
 func (v Vec3) Scale(scalar float64) Vec3 {
-	return Vec3{X: v.X * scalar, Y: v.Y * scalar, Z: v.Z * scalar}
+	v._Scale(scalar)
+	return v
+}
+func (v *Vec3) _Scale(scalar float64) {
+	v.X *= scalar
+	v.Y *= scalar
+	v.Z *= scalar
 }
 
-func (v Vec3) Dot(other Vec3) float64 {
+func (v *Vec3) Dot(other Vec3) float64 {
 	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
 }
 
@@ -40,13 +63,29 @@ func (v Vec3) Normalize() Vec3 {
 	}
 	return v.Scale(1.0 / length)
 }
+func (v *Vec3) _Normalize() {
+	length := v.Length()
+	if length == 0 {
+		v.X, v.Y, v.Z = 0, 0, 0
+		return
+	}
+	scale := 1.0 / length
+	v.X *= scale
+	v.Y *= scale
+	v.Z *= scale
+}
 
 func (v Vec3) Cross(other Vec3) Vec3 {
-	return Vec3{
-		X: v.Y*other.Z - v.Z*other.Y,
-		Y: v.Z*other.X - v.X*other.Z,
-		Z: v.X*other.Y - v.Y*other.X,
-	}
+	v._Cross(other)
+	return v
+}
+func (v *Vec3) _Cross(other Vec3) {
+	newX := v.Y*other.Z - v.Z*other.Y
+	newY := v.Z*other.X - v.X*other.Z
+	newZ := v.X*other.Y - v.Y*other.X
+	v.X = newX
+	v.Y = newY
+	v.Z = newZ
 }
 
 func (v Vec3) ToRGBA() color.RGBA {
@@ -63,5 +102,11 @@ func (v Vec3) ToRGBA() color.RGBA {
 }
 
 func (v Vec3) ComponentMul(other Vec3) Vec3 {
-	return Vec3{X: v.X * other.X, Y: v.Y * other.Y, Z: v.Z * other.Z}
+	v._ComponentMul(other)
+	return v
+}
+func (v *Vec3) _ComponentMul(other Vec3) {
+	v.X *= other.X
+	v.Y *= other.Y
+	v.Z *= other.Z
 }
