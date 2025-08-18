@@ -10,13 +10,13 @@ import (
 	"math/rand"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 )
 
 var threadCount = 16 // Number of goroutines to use for rendering
@@ -25,20 +25,20 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 512
-	height := 512
+	width := 768
+	height := 768
 
 	showStats := true
 
-	bounces := 0
-	scatterRays := 64
-	ambient := 0.1
+	bounces := 2
+	scatterRays := 3
+	ambient := 0.01
 	maxSteps := 1
 	stepSize := 1000.0
 
 	// Scene
-	rotY := 180.0 * 0.0174533
-	rotX := 180.0 * 0.0174533
+	rotY := 170.0 * 0.0174533
+	rotX := 165.0 * 0.0174533
 
 	// rotY := 155.0 * 0.0174533
 	// rotX := 200.0 * 0.0174533
@@ -47,14 +47,14 @@ func main() {
 		// Position: Vec3{X: 0, Y: 0, Z: -5},
 		// Position: Vec3{X: 0, Y: 0.8, Z: -3.2},
 		// Position: Vec3{X: -0.12574528163782742, Y: 2.2389967140962512, Z: 2.2364934252835065},
-		Position: Vec3{X: -0, Y: 0.9, Z: 0.65}, // <--- sponza
+		Position: Vec3{X: -3.2, Y: 0.5, Z: 21}, // <--- sponza
 		Forward:  Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
 		Right:    Vec3{X: 1, Y: 0, Z: 0},
 		Up:       Vec3{X: 0, Y: -1, Z: 0},
 		// Forward:          Vec3{X: -0.024214702328704055, Y: -0.5226872289306594, Z: -0.8521805612098416},
 		// Right:            Vec3{X: -0.9995965384680866, Y: 0, Z: 0.028403525883580263},
 		// Up:               Vec3{X: 0.014846160235948829, Y: -0.8525245220595057, Z: 0.5224763447405635},
-		FrustrumDistance: 1,
+		FrustrumDistance: 2,
 	}
 	camera.ApplyRotation(rotY, rotX)
 
@@ -68,21 +68,22 @@ func main() {
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Emissions.obj", 1)
-	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1)
+	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1.5)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
-	boxObj := Object{
+	boxObj := GameObject{
 		Position: Vec3{Z: 0},
 		Mesh:     *boxMesh,
 	}
 
-	scene := []Object{
+	scene := []GameObject{
 		boxObj,
 	}
 
 	// sunDirection := Vec3{X: -0.2, Y: 0.854357657716761, Z: 0.3126145946300566}.Normalize() // <- 2B
 	// sunDirection := Vec3{X: -0.2, Y: 0.854357657716761, Z: -5}.Normalize()
-	sunDirection := Vec3{X: 0.1, Y: 0.85, Z: 0.6}.Normalize() // <- sponza
+	sunDirection := Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize() // <- sponza
+	// sunDirection := Vec3{X: -0, Y: 1, Z: 0}.Normalize() // <- sponza
 	// sunDirection := Vec3{X: 0.09349930860821053, Y: 0.9349930860821052, Z: 10.3421195818254895}.Normalize()
 
 	// Set up the window
@@ -185,19 +186,72 @@ func main() {
 	fmt.Println("BVH Built!")
 	fmt.Println(bvh.GetStats(1))
 
+	startTime := time.Now().UnixMilli()
+	splitsX := 4
+	splitsY := 4
+	startX := 0.0
+	startY := 0.0
+	splitSizeX := float64(width / splitsX)
+	splitSizeY := float64(height / splitsY)
+	iteration := atomic.Int64{}
+	tileIndex := atomic.Int64{}
+
+	randomSampling := false
+
 	calculate := func(targetImg *image.RGBA, imgMutex *sync.Mutex, tt *time.Ticker) {
 		for {
 			select {
 			case <-tt.C:
 				return
 			default:
-				rx := rand.Float64()
-				ry := rand.Float64()
+				if int(iteration.Load()) >= int(splitSizeX*splitSizeY) {
+					iteration.Store(0)
+					if tileIndex.Add(1) == int64(splitsX)*int64(splitsY) {
+						randomSampling = true
+						tileIndex.Store(0)
+					}
+				}
+
+				var dt int
+				if randomSampling {
+					dt = int(math.Floor(float64(time.Now().UnixMilli()-startTime)/1000)/10.0) % (splitsX * splitsY)
+				} else {
+					dt = int(tileIndex.Load()) % (splitsX * splitsY)
+				}
+
+				X := dt % splitsX
+				Y := dt / splitsX
+
+				offsetX := (splitSizeX * float64(X)) / float64(width)
+				offsetY := (splitSizeY * float64(Y)) / float64(height)
+
+				var rx, ry float64
+
+				if randomSampling {
+					// Calculate random pixel
+					randX := rand.Float64() * splitSizeX
+					randY := rand.Float64() * splitSizeY
+					rx = offsetX + randX/float64(width)
+					ry = offsetY + randY/float64(height)
+				} else {
+					//  Calculate random pixel
+					randX := rand.Float64()
+					randY := rand.Float64()
+					dX := iteration.Load() % int64(splitSizeX)
+					dY := (iteration.Load() / int64(splitSizeY)) % int64(splitSizeY)
+					rx = offsetX + (float64(dX)+randX/float64(width))/float64(width)
+					ry = offsetY + (float64(dY)+randY/float64(height))/float64(height)
+					iteration.Add(1)
+				}
+
 				pixelX := int(math.Round(rx * float64(width-1)))
 				pixelY := int(math.Round(ry * float64(height-1)))
+				startX = ((1.0 - offsetX) * float64(width)) - splitSizeX
+				startY = offsetY * float64(height)
 
 				// Bounds check
 				if pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height {
+					fmt.Println(pixelX, pixelY)
 					return
 				}
 
@@ -258,6 +312,8 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
+				time.Sleep(time.Millisecond)
+
 				deltaTime := 0.1
 				totalTime += deltaTime
 
@@ -297,6 +353,8 @@ func main() {
 				fyne.Do(func() {
 					newImage := canvas.NewImageFromImage(img)
 					newImage.FillMode = canvas.ImageFillOriginal
+					newImage.Move(fyne.NewPos(0, 0))
+					newImage.Resize(fyne.NewSize(float32(width), float32(height)))
 
 					ts := time.Now().UnixMilli() - lastTimeStep + 1
 					raysTracedCount := float64(raysTraced.Load()) * 1000 / float64(ts)
@@ -314,11 +372,19 @@ func main() {
 
 					text := canvas.NewText(fmt.Sprintf("%.1f %srays/s", raysTracedCount, unit), color.White)
 					text.TextSize = 10
-					bLayout := layout.NewStackLayout()
-					container := container.New(bLayout, newImage)
+					text.Move(fyne.NewPos(5, 10))
+
+					sampleRect := canvas.NewRectangle(color.Transparent)
+					sampleRect.Move(fyne.NewPos(float32(startX), float32(startY)))
+					sampleRect.Resize(fyne.NewSize(float32(width)/float32(splitsX), float32(height)/float32(splitsY)))
+					sampleRect.StrokeColor = color.White
+					sampleRect.StrokeWidth = 1.0
+
+					container := container.NewWithoutLayout(newImage)
 					if showStats {
 						container.Add(text)
 					}
+					container.Add(sampleRect)
 
 					w.SetContent(container)
 				})

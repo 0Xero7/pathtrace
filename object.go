@@ -1,6 +1,6 @@
 package main
 
-type Object struct {
+type GameObject struct {
 	Position Vec3
 	Mesh     Mesh
 }
