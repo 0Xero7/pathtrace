@@ -43,6 +43,7 @@ func TraceRay(ray *Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, sca
 		rayPosition = rayPosition.Add(ray.Direction.Scale(stepSize))
 	}
 
+	// return Vec3{}
 	// return Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255)
 	// Hits the sky
 	angle := ray.Direction.Dot(Vec3{Y: 1})

@@ -442,10 +442,17 @@ func main() {
 	showStats := true
 
 	bounces := 4
+	samplesPerPixel := 32
+	maxSamples := 32
 	scatterRays := 4
 	ambient := 0.0
 	maxSteps := 1
 	stepSize := 1000.0
+
+	splitsX := 4
+	splitsY := 4
+	splitSizeX := float64(width / splitsX)
+	splitSizeY := float64(height / splitsY)
 
 	// // Scene Cornell
 	// rotY := 0.0 * 0.0174533
@@ -455,8 +462,11 @@ func main() {
 	rotY := 170.0 * 0.0174533
 	rotX := 165.0 * 0.0174533
 
+	samples := atomic.Int64{}
+	totalSamples := width * height * maxSamples
+
 	camera := Camera{
-		// Position: Vec3{X: 0, Y: 0.6, Z: -2.2}, // <--- cornell
+		// Position: Vec3{X: 0, Y: 0.7, Z: -2.2}, // <--- cornell
 		Position:         Vec3{X: -3.2, Y: 0.5, Z: 21}, // <--- sponza
 		Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
 		Right:            Vec3{X: 1, Y: 0, Z: 0},
@@ -468,6 +478,32 @@ func main() {
 	pixelBuffer := make([][]Pixel, height)
 	for i := range pixelBuffer {
 		pixelBuffer[i] = make([]Pixel, width)
+		for j := range pixelBuffer[i] {
+			pixelBuffer[i][j] = Pixel{
+				X: uint32(j),
+				Y: uint32(i),
+			}
+		}
+	}
+	tiles := make([]*Tile, threadCount)
+	for i := range threadCount {
+		x := (i % splitsX) * int(splitSizeX)
+		y := (i / splitsX) * int(splitSizeY)
+
+		pixels := make([]*Pixel, 0)
+		for w := range int(math.Floor(splitSizeX)) {
+			for h := range int(math.Floor(splitSizeY)) {
+				pixels = append(pixels, &pixelBuffer[y+h][w+x])
+			}
+		}
+
+		tiles[i] = &Tile{
+			X:      0,
+			Y:      0,
+			Width:  uint32(width),
+			Height: uint32(height),
+			Pixels: pixels,
+		}
 	}
 
 	// 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
@@ -596,17 +632,11 @@ func main() {
 	fmt.Println(bvhx.GetStats(1))
 	linearBVH := ConstructLinearBVH(bvhx)
 
-	startTime := time.Now().UnixMilli()
-	splitsX := 4
-	splitsY := 4
-	startX := 0.0
-	startY := 0.0
-	splitSizeX := float64(width / splitsX)
-	splitSizeY := float64(height / splitsY)
-	iteration := atomic.Int64{}
-	tileIndex := atomic.Int64{}
+	startTime := time.Now()
+	// iteration := atomic.Int64{}
+	// tileIndex := atomic.Int64{}
 
-	randomSampling := false
+	// randomSampling := true
 
 	cpuFile, err := os.Create("cpu.prof")
 	if err != nil {
@@ -627,7 +657,7 @@ func main() {
 	renderingActive.Store(true)
 
 	// Calculate function now runs continuously
-	calculate := func() {
+	calculate := func(tileIndex int) {
 		for {
 			select {
 			case <-stopRendering:
@@ -638,83 +668,42 @@ func main() {
 					continue
 				}
 
-				if int(iteration.Load()) >= int(splitSizeX*splitSizeY) {
-					iteration.Store(0)
-					if tileIndex.Add(1) == int64(splitsX)*int64(splitsY) {
-						randomSampling = true
-						tileIndex.Store(0)
-					}
+				// pixel := tiles[tileIndex].GetLeastSampledPixel()
+				pixel := tiles[tileIndex].GetNoisiestPixel(maxSamples)
+				if pixel == nil {
+					fmt.Println("Tile", tileIndex, "completed rendering.")
+					return
+				}
+				thisSamples := samplesPerPixel
+				if pixel.SampleCount == 0 {
+					thisSamples = 1
 				}
 
-				var dt int
-				if randomSampling {
-					dt = int(math.Floor(float64(time.Now().UnixMilli()-startTime)/1000)/10.0) % (splitsX * splitsY)
-				} else {
-					dt = int(tileIndex.Load()) % (splitsX * splitsY)
+				for range thisSamples {
+					rx := (float64(pixel.X) + rand.Float64()) / float64(width)
+					ry := (float64(pixel.Y) + rand.Float64()) / float64(height)
+
+					px := (rx - 0.5) * 2
+					py := (ry - 0.5) * 2
+					rayOrigin := camera.Position.Add(camera.Forward.Scale(camera.FrustrumDistance)).Add(camera.Up.Scale(py)).Add(camera.Right.Scale(px))
+					rayDirection := Vec3{
+						X: rayOrigin.X - camera.Position.X,
+						Y: rayOrigin.Y - camera.Position.Y,
+						Z: rayOrigin.Z - camera.Position.Z,
+					}.Normalize()
+
+					ray := NewRay(camera.Position, rayDirection)
+					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
+
+					// Accumulate color
+					pixel.AddSample(rayColor)
+					samples.Add(1)
 				}
-
-				X := dt % splitsX
-				Y := dt / splitsX
-
-				offsetX := (splitSizeX * float64(X)) / float64(width)
-				offsetY := (splitSizeY * float64(Y)) / float64(height)
-
-				var rx, ry float64
-
-				if randomSampling {
-					// Calculate random pixel
-					randX := rand.Float64() * splitSizeX
-					randY := rand.Float64() * splitSizeY
-					rx = offsetX + randX/float64(width)
-					ry = offsetY + randY/float64(height)
-				} else {
-					//  Calculate random pixel
-					randX := rand.Float64()
-					randY := rand.Float64()
-					dX := iteration.Load() % int64(splitSizeX)
-					dY := (iteration.Load() / int64(splitSizeY)) % int64(splitSizeY)
-					rx = offsetX + (float64(dX)+randX/float64(width))/float64(width)
-					ry = offsetY + (float64(dY)+randY/float64(height))/float64(height)
-					iteration.Add(1)
-				}
-
-				pixelX := int(math.Round(rx * float64(width-1)))
-				pixelY := int(math.Round(ry * float64(height-1)))
-				startX = ((1.0 - offsetX) * float64(width)) - splitSizeX
-				startY = offsetY * float64(height)
-
-				// Bounds check
-				if pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height {
-					continue
-				}
-
-				px := (rx - 0.5) * 2
-				py := (ry - 0.5) * 2
-				rayOrigin := camera.Position.Add(camera.Forward.Scale(camera.FrustrumDistance)).Add(camera.Up.Scale(py)).Add(camera.Right.Scale(px))
-				rayDirection := Vec3{
-					X: rayOrigin.X - camera.Position.X,
-					Y: rayOrigin.Y - camera.Position.Y,
-					Z: rayOrigin.Z - camera.Position.Z,
-				}.Normalize()
-
-				ray := NewRay(camera.Position, rayDirection)
-				rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
-
-				// When a ray hits a pixel:
-				pixel := &pixelBuffer[pixelY][pixelX]
-				pixel.Lock.Lock()
-
-				// Accumulate color
-				pixel.R += float64(rayColor.X)
-				pixel.G += float64(rayColor.Y)
-				pixel.B += float64(rayColor.Z)
-				pixel.SampleCount++
 
 				// Calculate running average
 				avgR := pixel.R / float64(pixel.SampleCount)
 				avgG := pixel.G / float64(pixel.SampleCount)
 				avgB := pixel.B / float64(pixel.SampleCount)
-				pixel.Lock.Unlock()
 
 				avgColor := Vec3{
 					X: avgR,
@@ -722,14 +711,14 @@ func main() {
 					Z: avgB,
 				}.ToRGBA()
 
-				img.Set(width-pixelX, pixelY, avgColor)
+				img.Set(width-int(pixel.X), int(pixel.Y), avgColor)
 			}
 		}
 	}
 
 	// Start render workers that run continuously
 	for i := 0; i < threadCount; i++ {
-		go calculate()
+		go calculate(i)
 	}
 
 	// Display update loop - runs at fixed 30 FPS
@@ -765,11 +754,6 @@ func main() {
 					}
 				}
 
-				// Reset iteration counters
-				iteration.Store(0)
-				tileIndex.Store(0)
-				randomSampling = false
-
 				// Resume rendering
 				renderingActive.Store(true)
 				dirty = false
@@ -793,28 +777,29 @@ func main() {
 						raysTraced.Store(0)
 					}
 
-					unit := ""
-					if raysTracedCount > 1e6 {
-						raysTracedCount /= 1e6
-						unit = "M"
-					} else if raysTracedCount > 1e3 {
-						raysTracedCount /= 1e3
-						unit = "K"
-					}
-
-					text := canvas.NewText(fmt.Sprintf("%.1f %srays/s", raysTracedCount, unit), color.White)
+					text := canvas.NewText(fmt.Sprintf("%s rays/s", Humanize(raysTracedCount)), color.White)
 					text.TextSize = 10
 					text.Move(fyne.NewPos(5, 10))
 					container.Add(text)
+
+					completionText := canvas.NewText(fmt.Sprintf("%s/%s samples (%.1f%%)", Humanize(samples.Load()), Humanize(totalSamples), (float64(samples.Load()*100)/float64(totalSamples))), color.White)
+					completionText.TextSize = 10
+					completionText.Move(fyne.NewPos(5, 23))
+					container.Add(completionText)
+
+					secondsSinceStart := int(time.Since(startTime).Seconds())
+					samplingSpeed := float64(samples.Load()) / float64(secondsSinceStart)
+					secondsToCompletion := totalSamples / int(samplingSpeed)
+					remainingSecs := secondsToCompletion % 60
+					remainingMinutes := secondsToCompletion / 60
+
+					elapsedMinutes := secondsSinceStart / 60
+					elapsedSecs := int(secondsSinceStart) % 60
+					timeElapsedText := canvas.NewText(fmt.Sprintf("%02d:%02d / %02d:%02d", elapsedMinutes, elapsedSecs, remainingMinutes, remainingSecs), color.White)
+					timeElapsedText.TextSize = 10
+					timeElapsedText.Move(fyne.NewPos(5, 36))
+					container.Add(timeElapsedText)
 				}
-
-				sampleRect := canvas.NewRectangle(color.Transparent)
-				sampleRect.Move(fyne.NewPos(float32(startX), float32(startY)))
-				sampleRect.Resize(fyne.NewSize(float32(width)/float32(splitsX), float32(height)/float32(splitsY)))
-				sampleRect.StrokeColor = color.White
-				sampleRect.StrokeWidth = 1.0
-				container.Add(sampleRect)
-
 				w.SetContent(container)
 			})
 		}

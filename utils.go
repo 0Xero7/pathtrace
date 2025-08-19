@@ -1,6 +1,22 @@
 package main
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
+
+func Humanize[T int | int32 | int64 | float64 | float32](val T) string {
+	if val >= 1e9 {
+		return fmt.Sprintf("%.1fG", float64(val)/1e9)
+	}
+	if val >= 1e6 {
+		return fmt.Sprintf("%.1fM", float64(val)/1e6)
+	}
+	if val >= 1e3 {
+		return fmt.Sprintf("%.1fK", float64(val)/1e3)
+	}
+	return fmt.Sprintf("%v", val)
+}
 
 func Between(val, l, r float64) bool {
 	return l <= val && r >= val

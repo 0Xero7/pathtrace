@@ -8,9 +8,52 @@ import (
 )
 
 type Pixel struct {
+	X, Y        uint32
 	R, G, B     float64
 	SampleCount int
+	Variance    float64 // Add this
+	M2          Vec3    // For online variance calculation
+	Mean        Vec3    // Running mean
 	Lock        sync.Mutex
+}
+
+func (p *Pixel) AddSample(color Vec3) {
+	// p.Lock.Lock()
+	// defer p.Lock.Unlock()
+
+	p.SampleCount++
+	n := float64(p.SampleCount)
+
+	// Update mean and variance
+	delta := Vec3{
+		X: color.X - p.Mean.X,
+		Y: color.Y - p.Mean.Y,
+		Z: color.Z - p.Mean.Z,
+	}
+
+	p.Mean.X += delta.X / n
+	p.Mean.Y += delta.Y / n
+	p.Mean.Z += delta.Z / n
+
+	delta2 := Vec3{
+		X: color.X - p.Mean.X,
+		Y: color.Y - p.Mean.Y,
+		Z: color.Z - p.Mean.Z,
+	}
+
+	p.M2.X += delta.X * delta2.X
+	p.M2.Y += delta.Y * delta2.Y
+	p.M2.Z += delta.Z * delta2.Z
+
+	if p.SampleCount > 1 {
+		// Luminance-weighted variance
+		variance := (p.M2.X + p.M2.Y + p.M2.Z) / (3.0 * (n - 1))
+		p.Variance = variance
+	}
+
+	p.R += color.X
+	p.G += color.Y
+	p.B += color.Z
 }
 
 var images map[string]*image.Image = map[string]*image.Image{}
