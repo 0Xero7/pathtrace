@@ -1,6 +1,7 @@
 package main
 
-type GameObject struct {
+type GameObject[T any] struct {
 	Position Vec3
-	Mesh     Mesh
+	Mesh     *Mesh
+	Object   T
 }

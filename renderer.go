@@ -228,7 +228,7 @@ func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriang
 	return worldSpaceNormal.Normalize()
 }
 
-func DecomposeObjects(objects []GameObject) ([]Vec3, []int, []Vec3, []*Material, []float64) {
+func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Material, []float64) {
 	vertices := make([]Vec3, 0)
 	tris := make([]int, 0)
 	normals := make([]Vec3, 0)

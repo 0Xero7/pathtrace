@@ -436,8 +436,8 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 768
-	height := 768
+	width := 256
+	height := 256
 
 	showStats := true
 
@@ -454,26 +454,8 @@ func main() {
 	splitSizeX := float64(width / splitsX)
 	splitSizeY := float64(height / splitsY)
 
-	// // Scene Cornell
-	// rotY := 0.0 * 0.0174533
-	// rotX := 180.0 * 0.0174533
-
-	// Scene Sponza
-	rotY := 170.0 * 0.0174533
-	rotX := 165.0 * 0.0174533
-
 	samples := atomic.Int64{}
 	totalSamples := width * height * maxSamples
-
-	camera := Camera{
-		// Position: Vec3{X: 0, Y: 0.7, Z: -2.2}, // <--- cornell
-		Position:         Vec3{X: -3.2, Y: 0.5, Z: 21}, // <--- sponza
-		Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
-		Right:            Vec3{X: 1, Y: 0, Z: 0},
-		Up:               Vec3{X: 0, Y: -1, Z: 0},
-		FrustrumDistance: 2,
-	}
-	camera.ApplyRotation(rotY, rotX)
 
 	pixelBuffer := make([][]Pixel, height)
 	for i := range pixelBuffer {
@@ -506,25 +488,65 @@ func main() {
 		}
 	}
 
+	// ---------------------------- SPONZA ---------------------------------
+	sponzaScene := Scene{}
+	sponzaScene.Camera = &Camera{
+		Position:         Vec3{X: -3.2, Y: 0.5, Z: 21},
+		Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
+		Right:            Vec3{X: 1, Y: 0, Z: 0},
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 2,
+	}
+	sponzaScene.Camera.ApplyRotation(170.0*0.0174533, 165.0*0.0174533)
+	sponzaMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1.5)
+	sponzaScene.Meshes = append(sponzaScene.Meshes, &GameObject[any]{
+		Position: Vec3{Z: 0},
+		Mesh:     sponzaMesh,
+	})
+	sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
+		Object: &Sun{
+			Direction: Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize(),
+			Intensity: 1,
+			Color:     Vec3{}.Ones(),
+		},
+	})
+
+	// ---------------------------- CORNELL SPHERE ---------------------------------
+	cornellSphereScene := Scene{}
+	cornellSphereScene.Camera = &Camera{
+		Position:         Vec3{X: 0, Y: 0.7, Z: -2.2},
+		Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
+		Right:            Vec3{X: 1, Y: 0, Z: 0},
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 2,
+	}
+	cornellSphereScene.Camera.ApplyRotation(0.0*0.0174533, 180.0*0.0174533)
+	cornellMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
+	cornellSphereScene.Meshes = append(cornellSphereScene.Meshes, &GameObject[any]{
+		Position: Vec3{Z: 0},
+		Mesh:     cornellMesh,
+	})
+
+	scene := cornellSphereScene
+	camera := *scene.Camera
 	// 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B2.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Emissions.obj", 1)
-	boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1.5)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
-	boxObj := GameObject{
-		Position: Vec3{Z: 0},
-		Mesh:     *boxMesh,
-	}
+	// boxObj := GameObject{
+	// 	Position: Vec3{Z: 0},
+	// 	Mesh:     *boxMesh,
+	// }
 
-	scene := []GameObject{
-		boxObj,
-	}
+	// scene := []GameObject{
+	// 	boxObj,
+	// }
 
-	// sunDirection := Vec3{X: -0.1, Y: 1, Z: 10}.Normalize() // <- cornell sphere
-	sunDirection := Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize() // <- sponza
+	// // sunDirection := Vec3{X: -0.1, Y: 1, Z: 10}.Normalize() // <- cornell sphere
+	// sunDirection := Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize() // <- sponza
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -569,22 +591,22 @@ func main() {
 			camera.Position = camera.Position.Add(camera.Up.Scale(-0.1))
 			dirty = true
 
-		case fyne.KeyI:
-			rotX -= 0.01
-			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
-			dirty = true
-		case fyne.KeyK:
-			rotX += 0.01
-			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
-			dirty = true
-		case fyne.KeyJ:
-			rotY -= 0.01
-			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
-			dirty = true
-		case fyne.KeyL:
-			rotY += 0.01
-			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
-			dirty = true
+		// case fyne.KeyI:
+		// 	rotX -= 0.01
+		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+		// 	dirty = true
+		// case fyne.KeyK:
+		// 	rotX += 0.01
+		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+		// 	dirty = true
+		// case fyne.KeyJ:
+		// 	rotY -= 0.01
+		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+		// 	dirty = true
+		// case fyne.KeyL:
+		// 	rotY += 0.01
+		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+		// 	dirty = true
 
 		case fyne.KeyPageUp:
 			bounces++
@@ -593,18 +615,18 @@ func main() {
 			bounces--
 			dirty = true
 
-		case fyne.KeyUp:
-			sunDirection.Z += 0.1
-			dirty = true
-		case fyne.KeyDown:
-			sunDirection.Z -= 0.1
-			dirty = true
-		case fyne.KeyLeft:
-			sunDirection.X -= 0.1
-			dirty = true
-		case fyne.KeyRight:
-			sunDirection.X += 0.1
-			dirty = true
+		// case fyne.KeyUp:
+		// 	sunDirection.Z += 0.1
+		// 	dirty = true
+		// case fyne.KeyDown:
+		// 	sunDirection.Z -= 0.1
+		// 	dirty = true
+		// case fyne.KeyLeft:
+		// 	sunDirection.X -= 0.1
+		// 	dirty = true
+		// case fyne.KeyRight:
+		// 	sunDirection.X += 0.1
+		// 	dirty = true
 
 		case fyne.KeyH:
 			showStats = !showStats
@@ -623,7 +645,7 @@ func main() {
 
 	w.Show()
 
-	vertices, tris, normals, materials, uvs := DecomposeObjects(scene)
+	vertices, tris, normals, materials, uvs := DecomposeObjects(scene.Meshes)
 	println(len(materials))
 
 	fmt.Println("BVH Building...")
@@ -693,7 +715,7 @@ func main() {
 					}.Normalize()
 
 					ray := NewRay(camera.Position, rayDirection)
-					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, sunDirection, false)
+					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, &scene, false)
 
 					// Accumulate color
 					pixel.AddSample(rayColor)
@@ -735,8 +757,8 @@ func main() {
 				fmt.Println("  Fwd: ", camera.Forward)
 				fmt.Println("  Right: ", camera.Right)
 				fmt.Println("  Up: ", camera.Up)
-				fmt.Println("Sun:")
-				fmt.Println("  Dir: ", sunDirection)
+				// fmt.Println("Sun:")
+				// fmt.Println("  Dir: ", sunDirection)
 				fmt.Println("-----------------------------------")
 
 				// Pause rendering while we clear

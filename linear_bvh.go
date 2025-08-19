@@ -16,7 +16,7 @@ type LinearBVHNode struct {
 	SecondChildOffset uint32
 }
 
-func (l *LinearBVHNode) intersectAABB(ray *Ray, stepSize float64) float64 {
+func (l *LinearBVHNode) intersectAABB(ray Ray, stepSize float64) float64 {
 	inverseDirection := ray.Direction.Inverse()
 	leftBounds := l.MinBounds.Sub(ray.Origin).ComponentMul(inverseDirection)
 	rightBounds := l.MaxBounds.Sub(ray.Origin).ComponentMul(inverseDirection)
@@ -109,7 +109,7 @@ func ConstructLinearBVH(root *Box) *LinearBVH {
 
 // ----------------------------------------------------------------------
 
-func (box *LinearBVH) CheckIntersection(ray *Ray, stepSize float64, vertices []Vec3) (bool, float64, *BVHTriangle) {
+func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float64, vertices []Vec3) (bool, float64, *BVHTriangle) {
 	stack := make([]uint32, 64)
 	stack[0] = 0
 	nptr := 1

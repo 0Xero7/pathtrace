@@ -18,13 +18,13 @@ type Ray struct {
 	// InverseDirection Vec3
 }
 
-func NewRay(origin, direction Vec3) *Ray {
+func NewRay(origin, direction Vec3) Ray {
 	// inverseDirection := Vec3{
 	// 	X: 1.0 / direction.X,
 	// 	Y: 1.0 / direction.Y,
 	// 	Z: 1.0 / direction.Z,
 	// }
-	return &Ray{
+	return Ray{
 		Origin:    origin,
 		Direction: direction,
 		// InverseDirection: inverseDirection,
