@@ -114,7 +114,7 @@ func (v *Vec3) _ComponentMul(other Vec3) {
 	v.Z *= other.Z
 }
 
-func (v Vec3) Inverse() Vec3 {
+func (v *Vec3) Inverse() Vec3 {
 	return Vec3{
 		X: 1.0 / v.X,
 		Y: 1.0 / v.Y,

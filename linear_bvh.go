@@ -109,7 +109,7 @@ func ConstructLinearBVH(root *Box) *LinearBVH {
 
 // ----------------------------------------------------------------------
 
-func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float64, vertices []Vec3) (bool, float64, *BVHTriangle) {
+func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float64) (bool, float64, *BVHTriangle) {
 	stack := make([]uint32, 64)
 	stack[0] = 0
 	nptr := 1
@@ -163,4 +163,84 @@ func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float64, vertices []Ve
 		return false, 0, nil
 	}
 	return true, best_t, best_tri
+}
+
+// Möller-Trumbore without barycentric coords
+func FastIntersectShadowTriangle(origin, dir Vec3, tmax float64, v0, v1, v2 Vec3) bool {
+	edge1 := v1.Sub(v0)
+	edge2 := v2.Sub(v0)
+	h := dir.Cross(edge2)
+	a := edge1.Dot(h)
+
+	if a > -0.00001 && a < 0.00001 {
+		return false
+	}
+
+	f := 1.0 / a
+	s := origin.Sub(v0)
+	u := f * s.Dot(h)
+
+	if u < 0.0 || u > 1.0 {
+		return false
+	}
+
+	q := s.Cross(edge1)
+	v := f * dir.Dot(q)
+
+	if v < 0.0 || u+v > 1.0 {
+		return false
+	}
+
+	t := f * edge2.Dot(q)
+	return t > 0.00001 && t < tmax
+}
+
+func (box *LinearBVH) QuickCheckIntersection(ray Ray, stepSize float64) bool {
+	var stack [64]uint32
+	stack[0] = 0
+	nptr := 1
+
+	for nptr > 0 {
+		ptr := uint32(stack[nptr-1])
+		node := box.Nodes[ptr]
+		nptr--
+
+		if node.IsLeaf {
+			for i := 0; i < int(node.TriangleCount); i++ {
+				tri := box.Triangles[node.TriangleOffset+uint32(i)]
+				intersects := FastIntersectShadowTriangle(ray.Origin, ray.Direction, stepSize, tri.A, tri.B, tri.C)
+				if intersects {
+					return true
+				}
+			}
+		} else {
+			// Test both children
+			dist1 := box.Nodes[ptr+1].intersectAABB(ray, stepSize)
+			dist2 := box.Nodes[node.SecondChildOffset].intersectAABB(ray, stepSize)
+
+			// Push to stack in distance order (far to near)
+			if dist1 < stepSize && dist2 < stepSize {
+				// Both hit - push furthest first
+				if dist1 < dist2 {
+					stack[nptr] = node.SecondChildOffset
+					nptr++
+					stack[nptr] = ptr + 1
+					nptr++
+				} else {
+					stack[nptr] = ptr + 1
+					nptr++
+					stack[nptr] = node.SecondChildOffset
+					nptr++
+				}
+			} else if dist1 < stepSize {
+				stack[nptr] = ptr + 1
+				nptr++
+			} else if dist2 < stepSize {
+				stack[nptr] = node.SecondChildOffset
+				nptr++
+			}
+		}
+	}
+
+	return false
 }

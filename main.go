@@ -436,13 +436,13 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 256
-	height := 256
+	width := 768
+	height := 768
 
 	showStats := true
 
 	bounces := 4
-	samplesPerPixel := 32
+	samplesPerPixel := 2
 	maxSamples := 32
 	scatterRays := 4
 	ambient := 0.0
@@ -510,6 +510,13 @@ func main() {
 			Color:     Vec3{}.Ones(),
 		},
 	})
+	// sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
+	// 	Object: &Sun{
+	// 		Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
+	// 		Intensity: 1,
+	// 		Color:     Vec3{Z: 1},
+	// 	},
+	// })
 
 	// ---------------------------- CORNELL SPHERE ---------------------------------
 	cornellSphereScene := Scene{}
@@ -527,8 +534,11 @@ func main() {
 		Mesh:     cornellMesh,
 	})
 
-	scene := cornellSphereScene
+	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
+
+	scene := sponzaScene
 	camera := *scene.Camera
+
 	// 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B2.obj", 1)
 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)

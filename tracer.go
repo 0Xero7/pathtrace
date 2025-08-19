@@ -11,7 +11,7 @@ var raysTraced atomic.Int64 = atomic.Int64{}
 func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*Material, uvs []float64, ambient float64, scene *Scene, indirectRay bool) Vec3 {
 	rayPosition := ray.Origin
 	for range maxSteps {
-		intersects, t, tri := bvh.CheckIntersection(ray, stepSize, vertices)
+		intersects, t, tri := bvh.CheckIntersection(ray, stepSize)
 		if intersects {
 			intersection_point := rayPosition.Add(ray.Direction.Scale(t))
 			normal := InterpolateNormal(
@@ -97,7 +97,7 @@ func HandleDiffuseMaterial(
 
 	// Calculate UV coordinates
 	var x, y float64
-	if material.BumpImage != nil || material.DiffuseImage != nil {
+	if material.HasImage {
 		triangleIndex := tri.Index / 3
 		baseUVIndex := triangleIndex * 6
 
@@ -121,8 +121,8 @@ func HandleDiffuseMaterial(
 		v := (dot00*dot12 - dot01*dot02) * invDenom
 		w := 1.0 - u - v
 
-		x = tile(w*uv0_x + u*uv1_x + v*uv2_x)
-		y = tile(w*uv0_y + u*uv1_y + v*uv2_y)
+		x = (w*uv0_x + u*uv1_x + v*uv2_x)
+		y = (w*uv0_y + u*uv1_y + v*uv2_y)
 	}
 
 	// Sample texture if available
@@ -170,7 +170,7 @@ func HandleDiffuseMaterial(
 			Origin:    rayOrigin,
 			Direction: lightDirection,
 		}
-		contribution, _ := light.Object.Sample(lightRay, normal, bvh, stepSize, vertices)
+		contribution := light.Object.Sample(lightRay, normal, bvh, stepSize)
 		// Apply lighting to albedo (not as multiplication but as proper lighting)
 		directContribution._Add(contribution)
 	}

@@ -3,10 +3,15 @@ package main
 import (
 	"fmt"
 	"image"
+	"math"
 	"os"
 )
 
 func tile(val float64) float64 {
+	if val < 0 {
+		fmt.Println(val, "negative")
+		os.Exit(1)
+	}
 	f := val - float64(int(val))
 	return f
 }
@@ -46,6 +51,7 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 				} else {
 					mat.DiffuseImage = &cachedImage
 				}
+				mat.HasImage = true
 			}
 		}
 	}
@@ -80,8 +86,12 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 		if len(object.Uvs) > 0 {
 			for i := range 3 {
 				uvIndex := face.Uvs[i]
-				u := (float64(object.Uvs[uvIndex*2]))   // X coordinate
+				u := (float64(object.Uvs[uvIndex*2])) // X coordinate
+				u -= math.Floor(u)
+
 				v := (float64(object.Uvs[uvIndex*2+1])) // Y coordinate
+				v -= math.Floor(v)
+
 				uvs = append(uvs, u, v)
 			}
 		}

@@ -95,7 +95,7 @@ func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
 	px := int(x * float64(img.Width))
 	py := int(y * float64(img.Height))
 
-	offset := (py*img.Width + px) * 4
+	offset := (py*(img.Width) + px) << 2
 
 	packed := *(*uint32)(unsafe.Pointer(img.Pixels + uintptr(offset)))
 	return color.RGBA{

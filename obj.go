@@ -73,6 +73,7 @@ type Material struct {
 	MapKd      string       // Texture file linked to diffuse color
 	MapBump    string       // Texture file linked to bump maps
 
+	HasImage     bool
 	DiffuseImage *CachedImage
 	BumpImage    *CachedImage
 }
