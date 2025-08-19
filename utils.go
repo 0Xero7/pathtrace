@@ -22,11 +22,46 @@ func Between(val, l, r float64) bool {
 	return l <= val && r >= val
 }
 
-func IntersectSegmentTriangle(origin, dir Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
-	const EPSILON = 1e-9 // Increased precision for better accuracy
+func IntersectSegmentTriangle1(origin, direction Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
+	const epsilon = 1e-6
+
+	edge1 := B.Sub(A)
+	edge2 := C.Sub(A)
+	ray_cross_e2 := direction.Cross(edge2)
+	det := edge1.Dot(ray_cross_e2)
+
+	if det > -epsilon && det < epsilon {
+		return false, 0
+	}
+
+	inv_det := 1.0 / det
+	s := origin.Sub(A)
+	u := inv_det * s.Dot(ray_cross_e2)
+
+	if (u < 0 && math.Abs(u) > epsilon) || (u > 1 && math.Abs(u-1) > epsilon) {
+		return false, 0
+	}
+
+	s_cross_e1 := s.Cross(edge1)
+	v := inv_det * direction.Dot(s_cross_e1)
+
+	if (v < 0 && math.Abs(v) > epsilon) || (u+v > 1 && math.Abs(u+v-1) > epsilon) {
+		return false, 0
+	}
+
+	t := inv_det * edge2.Dot(s_cross_e1)
+	if t > epsilon && t <= stepSize {
+		return true, t
+	}
+
+	return false, 0
+}
+
+func IntersectSegmentTriangle(origin, direction Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
+	const EPSILON = 1e-6 // Increased precision for better accuracy
 
 	// Normalize direction vector to ensure consistent distance calculations
-	direction := dir
+	// direction := dir
 
 	// Find vectors for two edges sharing vertex A.
 	edge1 := B.Sub(A)
@@ -35,7 +70,12 @@ func IntersectSegmentTriangle(origin, dir Vec3, stepSize float64, A, B, C Vec3) 
 	// Step 1: Calculate the determinant.
 	// This involves a vector triple product. If the determinant is near zero,
 	// the ray is parallel to the plane of the triangle.
-	pvec := direction.Cross(edge2)
+	// pvec := direction.Cross(edge2)
+	pvec := Vec3{
+		X: direction.Y*edge2.Z - direction.Z*edge2.Y,
+		Y: direction.Z*edge2.X - direction.X*edge2.Z,
+		Z: direction.X*edge2.Y - direction.Y*edge2.X,
+	}
 	determinant := edge1.Dot(pvec)
 
 	// If the determinant is close to 0, the ray lies in the plane of the triangle or is parallel to it.
@@ -56,7 +96,12 @@ func IntersectSegmentTriangle(origin, dir Vec3, stepSize float64, A, B, C Vec3) 
 
 	// Step 3: Calculate the second barycentric coordinate (v).
 	// This checks if the intersection point is between the A-B and B-C edges.
-	qvec := tvec.Cross(edge1)
+	// qvec := tvec.Cross(edge1)
+	qvec := Vec3{
+		X: tvec.Y*edge1.Z - tvec.Z*edge1.Y,
+		Y: tvec.Z*edge1.X - tvec.X*edge1.Z,
+		Z: tvec.X*edge1.Y - tvec.Y*edge1.X,
+	}
 	v := direction.Dot(qvec) * invDeterminant
 
 	// Check the v-bound and the u+v bound with tolerance
@@ -70,13 +115,10 @@ func IntersectSegmentTriangle(origin, dir Vec3, stepSize float64, A, B, C Vec3) 
 	// Step 5: The final and crucial check for a LINE SEGMENT.
 	// We confirm that the intersection point 't' lies within the segment's length.
 	// It must be a forward intersection (t > EPSILON) and within the stepSize.
-	if t > EPSILON && t <= stepSize {
-		// An intersection has been found.
-		return true, t
+	if t <= EPSILON || t > stepSize {
+		return false, 0
 	}
-
-	// The intersection is on the infinite ray but not on the segment.
-	return false, 0
+	return true, t
 }
 
 func InterpolateNormal(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {

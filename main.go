@@ -491,8 +491,8 @@ func main() {
 		y := (i / splitsX) * int(splitSizeY)
 
 		pixels := make([]*Pixel, 0)
-		for w := range int(math.Floor(splitSizeX)) {
-			for h := range int(math.Floor(splitSizeY)) {
+		for h := range int(math.Floor(splitSizeY)) {
+			for w := range int(math.Floor(splitSizeX)) {
 				pixels = append(pixels, &pixelBuffer[y+h][w+x])
 			}
 		}

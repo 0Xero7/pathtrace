@@ -2,8 +2,11 @@ package main
 
 import "math"
 
+const INF = math.MaxFloat64
+
 type LinearBVHNode struct {
-	Bounds [6]float64
+	// Bounds               [6]float64
+	MinBounds, MaxBounds Vec3
 
 	IsLeaf bool
 
@@ -14,41 +17,50 @@ type LinearBVHNode struct {
 }
 
 func (l *LinearBVHNode) intersectAABB(ray *Ray, stepSize float64) float64 {
-	inverseDirectionX := 1.0 / ray.Direction.X
-	inverseDirectionY := 1.0 / ray.Direction.Y
-	inverseDirectionZ := 1.0 / ray.Direction.Z
+	inverseDirection := ray.Direction.Inverse()
+	leftBounds := l.MinBounds.Sub(ray.Origin).ComponentMul(inverseDirection)
+	rightBounds := l.MaxBounds.Sub(ray.Origin).ComponentMul(inverseDirection)
 
+	// inverseDirectionX := 1.0 / ray.Direction.X
 	// Unrolled loop - no arrays!
-	t1 := (l.Bounds[0] - ray.Origin.X) * inverseDirectionX
-	t2 := (l.Bounds[3] - ray.Origin.X) * inverseDirectionX
-
-	tMin := min(t1, t2)
-	tMax := max(t1, t2)
-
-	t1 = (l.Bounds[1] - ray.Origin.Y) * inverseDirectionY
-	t2 = (l.Bounds[4] - ray.Origin.Y) * inverseDirectionY
-
-	tMin = max(tMin, min(t1, t2))
-	tMax = min(tMax, max(t1, t2))
-
-	if tMin > tMax {
-		return math.MaxFloat64
+	t1 := leftBounds.X  //(l.Bounds[0] - ray.Origin.X) * inverseDirection.X
+	t2 := rightBounds.X // (l.Bounds[3] - ray.Origin.X) * inverseDirection.X
+	if t1 > t2 {
+		t1, t2 = t2, t1
 	}
 
-	t1 = (l.Bounds[2] - ray.Origin.Z) * inverseDirectionZ
-	t2 = (l.Bounds[5] - ray.Origin.Z) * inverseDirectionZ
+	tMin := t1
+	tMax := t2
+	// inverseDirectionY := 1.0 / ray.Direction.Y
+	t1 = leftBounds.Y  //(l.Bounds[1] - ray.Origin.Y) * inverseDirection.Y
+	t2 = rightBounds.Y //(l.Bounds[4] - ray.Origin.Y) * inverseDirection.Y
+	if t1 > t2 {
+		t1, t2 = t2, t1
+	}
+	tMin = max(tMin, t1)
+	tMax = min(tMax, t2)
 
-	tMin = max(tMin, min(t1, t2))
-	tMax = min(tMax, max(t1, t2))
+	// if tMin > tMax {
+	// 	return maxFloat64
+	// }
 
-	if tMin > tMax || tMax < 0 {
-		return math.MaxFloat64
+	// inverseDirectionZ := 1.0 / ray.Direction.Z
+	t1 = leftBounds.Z  // (l.Bounds[2] - ray.Origin.Z) * inverseDirection.Z
+	t2 = rightBounds.Z // (l.Bounds[5] - ray.Origin.Z) * inverseDirection.Z
+	if t1 > t2 {
+		t1, t2 = t2, t1
 	}
 
-	// Clamp to stepSize
-	if tMin > stepSize {
-		return math.MaxFloat64
+	tMin = max(tMin, t1)
+	tMax = min(tMax, t2)
+	if tMin > min(tMax, stepSize) || tMax < 0 {
+		return INF
 	}
+
+	// // Clamp to stepSize
+	// if tMin > stepSize {
+	// 	return INF
+	// }
 
 	return max(0, tMin)
 }
@@ -61,13 +73,16 @@ type LinearBVH struct {
 func convert(root *Box, obj *LinearBVH) {
 	node := new(LinearBVHNode)
 	node.IsLeaf = root.IsLeaf
-	node.Bounds[0] = root.X1
-	node.Bounds[1] = root.Y1
-	node.Bounds[2] = root.Z1
+	// node.Bounds[0] = root.X1
+	// node.Bounds[1] = root.Y1
+	// node.Bounds[2] = root.Z1
 
-	node.Bounds[3] = root.X2
-	node.Bounds[4] = root.Y2
-	node.Bounds[5] = root.Z2
+	// node.Bounds[3] = root.X2
+	// node.Bounds[4] = root.Y2
+	// node.Bounds[5] = root.Z2
+
+	node.MinBounds = Vec3{X: root.X1, Y: root.Y1, Z: root.Z1}
+	node.MaxBounds = Vec3{X: root.X2, Y: root.Y2, Z: root.Z2}
 
 	if root.IsLeaf {
 		node.TriangleOffset = uint32(len(obj.Triangles))
@@ -130,7 +145,7 @@ func (box *LinearBVH) CheckIntersection(ray *Ray, stepSize float64, vertices []V
 					i, j = j, i
 					firstChildDistance, secondChildDistance = secondChildDistance, firstChildDistance
 				}
-				if firstChildDistance == math.MaxFloat64 {
+				if firstChildDistance == INF {
 					continue
 				}
 

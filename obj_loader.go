@@ -3,18 +3,11 @@ package main
 import (
 	"fmt"
 	"image"
-	"math"
 	"os"
 )
 
 func tile(val float64) float64 {
-	i, f := math.Modf(val)
-	if f < 1e-6 {
-		if i < 0.001 {
-			return 0.0
-		}
-		return 1.0
-	}
+	f := val - float64(int(val))
 	return f
 }
 
@@ -29,7 +22,7 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 	for _, mat := range object.Materials {
 		imagList := []string{mat.MapBump, mat.MapKd}
 
-		for _, texPath := range imagList {
+		for j, texPath := range imagList {
 			if texPath == "" {
 				continue
 			} else {
@@ -46,7 +39,13 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 					os.Exit(1)
 				}
 
-				images[texPath] = &imag
+				cachedImage := CacheImage(imag)
+				images[texPath] = cachedImage
+				if j == 0 {
+					mat.BumpImage = &cachedImage
+				} else {
+					mat.DiffuseImage = &cachedImage
+				}
 			}
 		}
 	}

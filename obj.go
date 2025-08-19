@@ -72,6 +72,9 @@ type Material struct {
 	Emissive   math32.Color // Emissive color
 	MapKd      string       // Texture file linked to diffuse color
 	MapBump    string       // Texture file linked to bump maps
+
+	DiffuseImage *CachedImage
+	BumpImage    *CachedImage
 }
 
 // Light gray default material used as when other materials cannot be loaded.

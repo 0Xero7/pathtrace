@@ -15,7 +15,7 @@ type BVHTriangle struct {
 type Ray struct {
 	Origin    Vec3
 	Direction Vec3
-	// inverseDirection Vec3
+	// InverseDirection Vec3
 }
 
 func NewRay(origin, direction Vec3) *Ray {
@@ -27,7 +27,7 @@ func NewRay(origin, direction Vec3) *Ray {
 	return &Ray{
 		Origin:    origin,
 		Direction: direction,
-		// inverseDirection: inverseDirection,
+		// InverseDirection: inverseDirection,
 	}
 }
 
@@ -194,16 +194,15 @@ func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float64, threshol
 
 func (box *Box) intersectAABB(ray *Ray, stepSize float64) float64 {
 	inverseDirectionX := 1.0 / ray.Direction.X
-	inverseDirectionY := 1.0 / ray.Direction.Y
-	inverseDirectionZ := 1.0 / ray.Direction.Z
-
-	// Unrolled loop - no arrays!
 	t1 := (box.X1 - ray.Origin.X) * inverseDirectionX
 	t2 := (box.X2 - ray.Origin.X) * inverseDirectionX
 
-	tMin := min(t1, t2)
-	tMax := max(t1, t2)
+	tMin, tMax := t1, t2
+	if tMin > tMax {
+		tMin, tMax = tMax, tMin
+	}
 
+	inverseDirectionY := 1.0 / ray.Direction.Y
 	t1 = (box.Y1 - ray.Origin.Y) * inverseDirectionY
 	t2 = (box.Y2 - ray.Origin.Y) * inverseDirectionY
 
@@ -214,6 +213,7 @@ func (box *Box) intersectAABB(ray *Ray, stepSize float64) float64 {
 		return math.MaxFloat64
 	}
 
+	inverseDirectionZ := 1.0 / ray.Direction.Z
 	t1 = (box.Z1 - ray.Origin.Z) * inverseDirectionZ
 	t2 = (box.Z2 - ray.Origin.Z) * inverseDirectionZ
 

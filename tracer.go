@@ -123,8 +123,8 @@ func HandleDiffuseMaterial(
 	y := tile(w*uv0_y + u*uv1_y + v*uv2_y)
 
 	// Sample texture if available
-	if material.MapKd != "" {
-		sampledColor := SampleDiffuseMap(material.MapKd, x, y)
+	if material.DiffuseImage != nil {
+		sampledColor := SampleDiffuseMap(material.DiffuseImage, x, y)
 
 		// Convert from sRGB to linear space for lighting calculations
 		// diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 2.2))
@@ -137,8 +137,8 @@ func HandleDiffuseMaterial(
 	}
 
 	// Sample bump map if available
-	if material.MapBump != "" {
-		bumpNormal := SampleBumpMap(material.MapBump, x, y, 3.0)
+	if material.BumpImage != nil {
+		bumpNormal := SampleBumpMap(material.BumpImage, x, y, 30.0)
 		normal = TransformNormalToWorldSpace(bumpNormal, normal, tri, intersection_point, uvs).Normalize()
 	}
 

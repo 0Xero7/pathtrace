@@ -76,8 +76,11 @@ func (v *Vec3) _Normalize() {
 }
 
 func (v Vec3) Cross(other Vec3) Vec3 {
-	v._Cross(other)
-	return v
+	return Vec3{
+		X: v.Y*other.Z - v.Z*other.Y,
+		Y: v.Z*other.X - v.X*other.Z,
+		Z: v.X*other.Y - v.Y*other.X,
+	}
 }
 func (v *Vec3) _Cross(other Vec3) {
 	newX := v.Y*other.Z - v.Z*other.Y
@@ -109,4 +112,12 @@ func (v *Vec3) _ComponentMul(other Vec3) {
 	v.X *= other.X
 	v.Y *= other.Y
 	v.Z *= other.Z
+}
+
+func (v Vec3) Inverse() Vec3 {
+	return Vec3{
+		X: 1.0 / v.X,
+		Y: 1.0 / v.Y,
+		Z: 1.0 / v.Z,
+	}
 }

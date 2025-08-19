@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"sync"
+	"unsafe"
 )
 
 type Pixel struct {
@@ -56,32 +57,63 @@ func (p *Pixel) AddSample(color Vec3) {
 	p.B += color.Z
 }
 
-var images map[string]*image.Image = map[string]*image.Image{}
+type CachedImage struct {
+	Pixels        uintptr
+	pixelsSlice   []uint32 // Keep slice alive to prevent GC
+	Width, Height int
+}
 
-func SampleDiffuseMap(path string, x, y float64) color.RGBA {
-	img := images[path]
-	width := (*img).Bounds().Dx()
-	height := (*img).Bounds().Dy()
+func CacheImage(img image.Image) CachedImage {
+	width := img.Bounds().Dx()
+	height := img.Bounds().Dy()
+	pixels := make([]uint32, width*height)
 
-	col := (*img).At(int(float64(width)*x), int(float64(height)*y))
-	r, g, b, a := col.RGBA()
+	for i := range height {
+		for j := range width {
+			r, g, b, a := img.At(j, i).RGBA()
 
-	return color.RGBA{
-		R: uint8(r),
-		G: uint8(g),
-		B: uint8(b),
-		A: uint8(a),
+			// Pack with correct endianness for your platform
+			packed := uint32(r>>8) | (uint32(g>>8) << 8) |
+				(uint32(b>>8) << 16) | (uint32(a>>8) << 24)
+
+			pixels[i*width+j] = packed
+		}
+	}
+
+	return CachedImage{
+		Width:       width,
+		Height:      height,
+		Pixels:      uintptr(unsafe.Pointer(&pixels[0])),
+		pixelsSlice: pixels,
 	}
 }
 
-func SampleBumpMap(path string, x, y float64, strength float64) Vec3 {
+var images map[string]CachedImage = map[string]CachedImage{}
+
+//go:nosplit
+func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
+	px := int(x * float64(img.Width))
+	py := int(y * float64(img.Height))
+
+	offset := (py*img.Width + px) * 4
+
+	packed := *(*uint32)(unsafe.Pointer(img.Pixels + uintptr(offset)))
+	return color.RGBA{
+		R: uint8(packed),
+		G: uint8(packed >> 8),
+		B: uint8(packed >> 16),
+		A: uint8(packed >> 24),
+	}
+}
+
+func SampleBumpMap(img *CachedImage, x, y float64, strength float64) Vec3 {
 	// x = (math.Mod(float64(x), 1))
 	// y = (math.Mod(float64(y), 1))
 
 	// Sample current pixel and neighbors for gradient calculation
-	center := SampleDiffuseMap(path, x, y)
-	right := SampleDiffuseMap(path, x+0.001, y) // Small offset
-	up := SampleDiffuseMap(path, x, y+0.001)
+	center := SampleDiffuseMap(img, x, y)
+	right := SampleDiffuseMap(img, x+0.001, y) // Small offset
+	up := SampleDiffuseMap(img, x, y+0.001)
 
 	// Convert to height (use red channel or luminance)
 	centerHeight := float64(center.R) / 255.0
