@@ -436,14 +436,14 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 768
-	height := 768
+	width := 512
+	height := 512
 
 	showStats := true
 
 	bounces := 4
-	samplesPerPixel := 2
-	maxSamples := 32
+	samplesPerPixel := 4
+	maxSamplesPerPixel := 16
 	scatterRays := 4
 	ambient := 0.0
 	maxSteps := 1
@@ -455,7 +455,7 @@ func main() {
 	splitSizeY := float64(height / splitsY)
 
 	samples := atomic.Int64{}
-	totalSamples := width * height * maxSamples
+	totalSamples := width * height * maxSamplesPerPixel
 
 	pixelBuffer := make([][]Pixel, height)
 	for i := range pixelBuffer {
@@ -688,6 +688,8 @@ func main() {
 	renderingActive := atomic.Bool{}
 	renderingActive.Store(true)
 
+	totalRaysTraced := 0
+
 	// Calculate function now runs continuously
 	calculate := func(tileIndex int) {
 		for {
@@ -701,7 +703,7 @@ func main() {
 				}
 
 				// pixel := tiles[tileIndex].GetLeastSampledPixel()
-				pixel := tiles[tileIndex].GetNoisiestPixel(maxSamples)
+				pixel := tiles[tileIndex].GetNoisiestPixel(maxSamplesPerPixel)
 				if pixel == nil {
 					fmt.Println("Tile", tileIndex, "completed rendering.")
 					return
@@ -709,6 +711,9 @@ func main() {
 				thisSamples := samplesPerPixel
 				if pixel.SampleCount == 0 {
 					thisSamples = 1
+				}
+				if pixel.SampleCount+thisSamples > maxSamplesPerPixel {
+					thisSamples = maxSamplesPerPixel - pixel.SampleCount
 				}
 
 				for range thisSamples {
@@ -730,6 +735,9 @@ func main() {
 					// Accumulate color
 					pixel.AddSample(rayColor)
 					samples.Add(1)
+					if pixel.SampleCount > maxSamplesPerPixel {
+						break
+					}
 				}
 
 				// Calculate running average
@@ -755,6 +763,9 @@ func main() {
 
 	// Display update loop - runs at fixed 30 FPS
 	lastStatsUpdate := time.Now()
+	maxRaysSpeed := 0.0
+	minRaysSpeed := math.MaxFloat64
+	endTime := time.Now()
 	go func() {
 		displayTicker := time.NewTicker(time.Second / 30) // 30 FPS
 		defer displayTicker.Stop()
@@ -775,6 +786,13 @@ func main() {
 				renderingActive.Store(false)
 				time.Sleep(10 * time.Millisecond) // Give workers time to pause
 
+				// Clear stats
+				maxRaysSpeed = 0.0
+				minRaysSpeed = math.MaxFloat64
+				totalRaysTraced = 0
+				raysTraced.Store(0)
+				recentRaysTraced.Store(0)
+
 				// Clear image and pixel buffer
 				for y := 0; y < height; y++ {
 					for x := 0; x < width; x++ {
@@ -794,6 +812,14 @@ func main() {
 
 			// Update the display
 			fyne.Do(func() {
+				if renderingActive.Load() {
+					endTime = time.Now()
+				}
+
+				totalRaysTraced = int(raysTraced.Load())
+				dt := float64(endTime.Sub(startTime).Abs().Milliseconds())
+				averageRaysSpeed := float64(totalRaysTraced*1000) / dt
+
 				newImage := canvas.NewImageFromImage(img)
 				newImage.FillMode = canvas.ImageFillOriginal
 				newImage.Move(fyne.NewPos(0, 0))
@@ -803,13 +829,16 @@ func main() {
 
 				// Update stats every second
 				if showStats {
-					raysTracedCount := float64(raysTraced.Load()) * 1000 / float64(time.Since(lastStatsUpdate).Abs().Milliseconds())
+					raysTracedCount := float64(raysTraced.Load()-recentRaysTraced.Load()) * 1000 / dt
+					minRaysSpeed = min(minRaysSpeed, raysTracedCount)
+					maxRaysSpeed = max(maxRaysSpeed, raysTracedCount)
+
 					if time.Since(lastStatsUpdate) > time.Second {
 						lastStatsUpdate = time.Now()
-						raysTraced.Store(0)
+						recentRaysTraced.Store(raysTraced.Load())
 					}
 
-					text := canvas.NewText(fmt.Sprintf("%s rays/s", Humanize(raysTracedCount)), color.White)
+					text := canvas.NewText(fmt.Sprintf("%s rays/s (Min: %s, Avg: %s, Max: %s)", Humanize(raysTracedCount), Humanize(minRaysSpeed), Humanize(averageRaysSpeed), Humanize(maxRaysSpeed)), color.White)
 					text.TextSize = 10
 					text.Move(fyne.NewPos(5, 10))
 					container.Add(text)
@@ -819,13 +848,13 @@ func main() {
 					completionText.Move(fyne.NewPos(5, 23))
 					container.Add(completionText)
 
-					secondsSinceStart := int(time.Since(startTime).Seconds())
-					samplingSpeed := float64(samples.Load()) / float64(secondsSinceStart)
+					secondsSinceStart := dt / 1000.0
+					samplingSpeed := max(1.0, float64(samples.Load())/float64(secondsSinceStart))
 					secondsToCompletion := totalSamples / int(samplingSpeed)
 					remainingSecs := secondsToCompletion % 60
 					remainingMinutes := secondsToCompletion / 60
 
-					elapsedMinutes := secondsSinceStart / 60
+					elapsedMinutes := int(secondsSinceStart / 60)
 					elapsedSecs := int(secondsSinceStart) % 60
 					timeElapsedText := canvas.NewText(fmt.Sprintf("%02d:%02d / %02d:%02d", elapsedMinutes, elapsedSecs, remainingMinutes, remainingSecs), color.White)
 					timeElapsedText.TextSize = 10

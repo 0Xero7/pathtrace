@@ -170,28 +170,28 @@ func FastIntersectShadowTriangle(origin, dir Vec3, tmax float64, v0, v1, v2 Vec3
 	edge1 := v1.Sub(v0)
 	edge2 := v2.Sub(v0)
 	h := dir.Cross(edge2)
-	a := edge1.Dot(h)
+	a := edge1.X*h.X + edge1.Y*h.Y + edge1.Z*h.Z
 
-	if a > -0.00001 && a < 0.00001 {
+	if math.Abs(a) < 0.00001 {
 		return false
 	}
 
-	f := 1.0 / a
+	// f := 1.0 / a
 	s := origin.Sub(v0)
-	u := f * s.Dot(h)
+	u := (s.X*h.X + s.Y*h.Y + s.Z*h.Z) / a
 
 	if u < 0.0 || u > 1.0 {
 		return false
 	}
 
 	q := s.Cross(edge1)
-	v := f * dir.Dot(q)
+	v := (dir.X*q.X + dir.Y*q.Y + dir.Z*q.Z) / a
 
 	if v < 0.0 || u+v > 1.0 {
 		return false
 	}
 
-	t := f * edge2.Dot(q)
+	t := (edge2.X*q.X + edge2.Y*q.Y + edge2.Z*q.Z) / a
 	return t > 0.00001 && t < tmax
 }
 

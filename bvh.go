@@ -1,8 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 )
 
 type BVHTriangle struct {
@@ -69,11 +71,11 @@ func (b *Box) Area() float64 {
 }
 
 type BVHStats struct {
-	MaxDepth, MaxTris, MinTris, TotalNodes, TotalTriangles int
+	MaxDepth, MaxTris, MinTris, TotalLeafs, TotalNodes, TotalTriangles int
 }
 
 func (b BVHStats) String() string {
-	return fmt.Sprintf("MaxDepth: %d\nMinTris: %d\nMaxTris: %d\nTotalNodes: %d\nTotalTriangles: %d\n", b.MaxDepth, b.MinTris, b.MaxTris, b.TotalNodes, b.TotalTriangles)
+	return fmt.Sprintf("MaxDepth: %d\nMinTris: %d\nAverage Tris: %.2f\nMaxTris: %d\nTotalLeafs: %d\nTotalNodes: %d\nTotalTriangles: %d\n", b.MaxDepth, b.MinTris, float64(b.TotalTriangles)/float64(b.TotalLeafs), b.MaxTris, b.TotalLeafs, b.TotalNodes, b.TotalTriangles)
 }
 
 func (box Box) GetStats(depth int) BVHStats {
@@ -83,6 +85,7 @@ func (box Box) GetStats(depth int) BVHStats {
 			MinTris:        len(box.Trianges),
 			MaxTris:        len(box.Trianges),
 			TotalNodes:     1,
+			TotalLeafs:     1,
 			TotalTriangles: len(box.Trianges),
 		}
 	}
@@ -99,6 +102,7 @@ func (box Box) GetStats(depth int) BVHStats {
 		temp.TotalNodes += stat.TotalNodes
 		temp.TotalTriangles += stat.TotalTriangles
 		temp.MaxDepth = max(temp.MaxDepth, stat.MaxDepth)
+		temp.TotalLeafs += stat.TotalLeafs
 		temp.MinTris = min(temp.MinTris, stat.MinTris)
 		temp.MaxTris = max(temp.MaxTris, stat.MaxTris)
 	}
@@ -124,7 +128,22 @@ func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int
 
 	for axis := range 3 {
 		l, r := starts[axis], ends[axis]
-		n := 15
+		n := 128
+		slices.SortFunc(tris, func(i, j *BVHTriangle) int {
+			x1 := 0.0
+			x2 := 0.0
+
+			switch axis {
+			case 0:
+				x1, x2 = i.Centroid.X, j.Centroid.X
+			case 1:
+				x1, x2 = i.Centroid.Y, j.Centroid.Y
+			case 2:
+				x1, x2 = i.Centroid.Z, j.Centroid.Z
+			}
+
+			return cmp.Compare(x1, x2)
+		})
 		for i := 0; i <= n; i += 1 {
 			mid := l + (r-l)*float64(i)/float64(n)
 
@@ -141,7 +160,7 @@ func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int
 				}
 			}
 
-			cost := float64(len(leftBox.Trianges))*leftBox.Area() + float64(len(rightBox.Trianges))*rightBox.Area()
+			cost := 1.0/8 + float64(len(leftBox.Trianges))*leftBox.Area() + float64(len(rightBox.Trianges))*rightBox.Area()
 			if cost < bestCost {
 				bestCost = cost
 				bestLeftBox = &leftBox

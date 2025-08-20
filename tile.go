@@ -1,6 +1,9 @@
 package main
 
-import "math"
+import (
+	"math"
+	"math/rand"
+)
 
 type Tile struct {
 	X      uint32
@@ -48,7 +51,7 @@ func (t *Tile) GetNoisiestPixel(maxSamples int) *Pixel {
 		// Weight by inverse sample count (prefer undersampled pixels)
 		priority := p.Variance / math.Sqrt(float64(p.SampleCount))
 
-		if priority > maxPriority {
+		if priority > maxPriority || (priority == maxPriority && p.SampleCount < pixel.SampleCount) || (priority == maxPriority && p.SampleCount == pixel.SampleCount && rand.Float64() < 0.5) {
 			pixel = p
 			maxPriority = priority
 		}

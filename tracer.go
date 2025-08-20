@@ -7,6 +7,7 @@ import (
 )
 
 var raysTraced atomic.Int64 = atomic.Int64{}
+var recentRaysTraced atomic.Int64 = atomic.Int64{}
 
 func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*Material, uvs []float64, ambient float64, scene *Scene, indirectRay bool) Vec3 {
 	rayPosition := ray.Origin

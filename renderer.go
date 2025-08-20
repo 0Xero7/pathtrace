@@ -107,6 +107,40 @@ func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
 }
 
 func SampleBumpMap(img *CachedImage, x, y float64, strength float64) Vec3 {
+	// Wrap coordinates to handle texture edges
+	x = math.Mod(x, 1.0)
+	y = math.Mod(y, 1.0)
+
+	// Calculate offset based on texture resolution for consistent sampling
+	w, h := float64(img.Width), float64(img.Height)
+	offsetX := 1.0 / w
+	offsetY := 1.0 / h
+
+	// Sample current pixel and neighbors
+	center := SampleDiffuseMap(img, x, y)
+	right := SampleDiffuseMap(img, math.Mod(x+offsetX, 1.0), y)
+	up := SampleDiffuseMap(img, x, math.Mod(y+offsetY, 1.0))
+
+	// Convert to height using luminance for better results
+	centerHeight := (0.299*float64(center.R) + 0.587*float64(center.G) + 0.114*float64(center.B)) / 255.0
+	rightHeight := (0.299*float64(right.R) + 0.587*float64(right.G) + 0.114*float64(right.B)) / 255.0
+	upHeight := (0.299*float64(up.R) + 0.587*float64(up.G) + 0.114*float64(up.B)) / 255.0
+
+	// Calculate gradient
+	dx := (rightHeight - centerHeight) * strength
+	dy := (upHeight - centerHeight) * strength
+
+	// Create and normalize normal
+	normal := Vec3{
+		X: -dx,
+		Y: -dy,
+		Z: 1.0,
+	}
+
+	return normal.Normalize() // This is essential!
+}
+
+func SampleBumpMap2(img *CachedImage, x, y float64, strength float64) Vec3 {
 	// x = (math.Mod(float64(x), 1))
 	// y = (math.Mod(float64(y), 1))
 
@@ -131,7 +165,7 @@ func SampleBumpMap(img *CachedImage, x, y float64, strength float64) Vec3 {
 		Z: 1.0, // Always pointing "up" in tangent space
 	}
 
-	return normal.Normalize()
+	return normal //.Normalize()
 }
 
 func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriangle, intersection_point Vec3, uvs []float64) Vec3 {
