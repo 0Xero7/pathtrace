@@ -536,7 +536,8 @@ func main() {
 
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
 
-	scene := sponzaScene
+	// scene := sponzaScene
+	scene := cornellSphereScene
 	camera := *scene.Camera
 
 	// 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)

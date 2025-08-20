@@ -175,39 +175,33 @@ func HandleDiffuseMaterial(
 		// Apply lighting to albedo (not as multiplication but as proper lighting)
 		directContribution._Add(contribution)
 	}
-	// ndotr := math.Max(ambient, normal.Dot(sunDirection.Normalize()))
-	// if ndotr > 0 {
-	// 	ray := NewRay(intersection_point.Add(normal.Scale(0.001)), sunDirection)
-	// 	shadow, _, _ := bvh.CheckIntersection(ray, stepSize, vertices)
-	// 	if shadow {
-	// 		ndotr = 0.0
-	// 	}
-	// }
 
 	// GI Rays
 	var indirectContribution Vec3
 	if bounces > 0 {
+		var dir Vec3
+		var up Vec3
+		if math.Abs(normal.Y) < 0.999 {
+			up = Vec3{X: 0, Y: 1, Z: 0}
+		} else {
+			up = Vec3{X: 1, Y: 0, Z: 0}
+		}
+
+		tangent1 := normal.Cross(up)
+		tangent1._Normalize()
+
+		tangent2 := normal.Cross(tangent1)
+
 		for range scatterRays {
-			var dir Vec3
-			var up Vec3
-			if math.Abs(normal.Y) < 0.9 {
-				up = Vec3{X: 0, Y: 1, Z: 0}
-			} else {
-				up = Vec3{X: 1, Y: 0, Z: 0}
-			}
+			u1 := rand.Float64()
+			u2 := rand.Float64()
 
-			tangent1 := normal.Cross(up)
-			tangent1._Normalize()
+			r := math.Sqrt(u1)
+			theta := 2 * math.Pi * u2
 
-			tangent2 := normal.Cross(tangent1)
-			tangent2._Normalize()
-
-			theta := rand.Float64() * 2 * math.Pi
-			// phi := rand.Float64() * math.Pi / 2
-			phi := math.Acos(math.Sqrt(rand.Float64()))
-			x := math.Cos(theta) * math.Sin(phi)
-			y := math.Sin(theta) * math.Sin(phi)
-			z := math.Cos(phi)
+			x := r * math.Cos(theta)
+			y := r * math.Sin(theta)
+			z := math.Sqrt(math.Max(0.0, 1.0-u1)) // This equals cos(phi)
 
 			dir = tangent1.Scale(x)
 			dir._Add(tangent2.Scale(y))
@@ -220,7 +214,6 @@ func HandleDiffuseMaterial(
 
 			// Apply albedo to incoming light, not as multiplication
 			contribution._ComponentMul(albedo)
-			contribution._Scale(1.0) // <--- this was pi
 			indirectContribution._Add(contribution)
 		}
 		indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))
@@ -275,33 +268,21 @@ func HandleReflectiveMaterial(
 
 	var reflectionContribution Vec3
 
-	if roughness < 0.1 { // Very smooth - perfect reflection
-		ray := NewRay(intersection_point.Add(normal.Scale(0.001)), reflectionDirection)
+	for range scatterRays {
+		sampledDir := SampleGlossyReflection(reflectionDirection, normal, float64(roughness))
+		ray := NewRay(intersection_point.Add(normal.Scale(0.001)), sampledDir)
 		contribution := TraceRay(
 			ray,
-			stepSize, bvh, maxSteps, bounces-1, 1,
+			stepSize, bvh, maxSteps, bounces-1, scatterRays,
 			vertices, normals, materials, uvs, ambient, scene, true,
 		)
-		reflectionContribution = contribution
-
-	} else { // Glossy - sample around reflection direction
-		for range scatterRays {
-			sampledDir := SampleGlossyReflection(reflectionDirection, normal, float64(roughness))
-			ray := NewRay(intersection_point.Add(normal.Scale(0.001)), sampledDir)
-			contribution := TraceRay(
-				ray,
-				stepSize, bvh, maxSteps, bounces-1, scatterRays,
-				vertices, normals, materials, uvs, ambient, scene, true,
-			)
-			reflectionContribution = reflectionContribution.Add(contribution)
-		}
-		reflectionContribution = reflectionContribution.Scale(1.0 / float64(scatterRays))
+		reflectionContribution._Add(contribution)
 	}
+	reflectionContribution._Scale(1.0 / float64(scatterRays))
 
 	// Mix based on Fresnel and specular color
-	final := reflectionContribution.ComponentMul(specularColor)
-
-	return final
+	reflectionContribution._ComponentMul(specularColor)
+	return reflectionContribution
 }
 
 func SampleGlossyReflection(reflectionDir, normal Vec3, roughness float64) Vec3 {
@@ -317,9 +298,10 @@ func SampleGlossyReflection(reflectionDir, normal Vec3, roughness float64) Vec3 
 	tangent2 := reflectionDir.Cross(tangent1).Normalize()
 
 	// Sample within cone - tighter cone for smoother materials
-	alpha := roughness * roughness
 	theta := rand.Float64() * 2 * math.Pi
-	phi := math.Acos(math.Pow(rand.Float64(), 1.0/(alpha*4.0+1.0)))
+	alpha := roughness * roughness
+	u := rand.Float64()
+	phi := math.Atan(alpha * math.Sqrt(u) / math.Sqrt(1.0-u))
 
 	x := math.Cos(theta) * math.Sin(phi)
 	y := math.Sin(theta) * math.Sin(phi)
