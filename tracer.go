@@ -174,9 +174,13 @@ func HandleDiffuseMaterial(
 			i1 := vnmu.EmissiveTriangles[choice].VertexIndices[1]
 			i2 := vnmu.EmissiveTriangles[choice].VertexIndices[2]
 
+			n0 := vnmu.EmissiveTriangles[choice].NormalIndices[0]
+			n1 := vnmu.EmissiveTriangles[choice].NormalIndices[1]
+			n2 := vnmu.EmissiveTriangles[choice].NormalIndices[2]
+
 			lightPoint := SampleTrianglePoint(vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2])
 			lightSurfaceNormal := InterpolateNormal(
-				lightPoint, vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2], vnmu.Normals[i0], vnmu.Normals[i1], vnmu.Normals[i2])
+				lightPoint, vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2], vnmu.Normals[n0], vnmu.Normals[n1], vnmu.Normals[n2])
 			toLight := lightPoint.Sub(rayOrigin)
 			distance := toLight.Length()
 			toLight._Normalize()
@@ -194,7 +198,7 @@ func HandleDiffuseMaterial(
 			if shadow {
 				return Vec3{}
 			}
-			sndorl := toLight.Dot(lightSurfaceNormal)
+			sndorl := -toLight.Dot(lightSurfaceNormal)
 			if sndorl <= 0 {
 				return Vec3{}
 			}
@@ -203,12 +207,13 @@ func HandleDiffuseMaterial(
 			pdf := TriangleArea(vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2])
 			pdf = 1.0 / (pdf * float64(len(vnmu.EmissiveTriangles)))
 
-			lightMaterial := FromColor(vnmu.Materials[vnmu.EmissiveTriangles[choice].MaterialIndex].Emissive).Scale(5) //) vnmu.Materials[vnmu.EmissiveTriangles[choice*3]]
+			lightMaterial := FromColor(vnmu.Materials[vnmu.EmissiveTriangles[choice].MaterialIndex].Emissive) //) vnmu.Materials[vnmu.EmissiveTriangles[choice*3]]
 			// lightEmission := FromColor(lightMaterial.Emissive)
 			lightEmission := lightMaterial
 			brdf := albedo.Scale(1.0 / math.Pi)
+			finalValue := lightEmission.ComponentMul(brdf).Scale(geometryTerm / pdf)
 
-			return lightEmission.ComponentMul(brdf).Scale(geometryTerm / pdf)
+			return finalValue
 		}()
 		directContribution._Add(emissiveContribution)
 	}

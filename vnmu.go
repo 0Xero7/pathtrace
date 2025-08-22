@@ -1,8 +1,8 @@
 package main
 
 type EmissiveTriangle struct {
-	VertexIndices [3]int
-	MaterialIndex int
+	VertexIndices, NormalIndices [3]int
+	MaterialIndex                int
 }
 
 type VNMU struct {

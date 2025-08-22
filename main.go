@@ -670,7 +670,8 @@ func main() {
 	w.Show()
 
 	vertices, tris, normals, materials, uvs, emissives := DecomposeObjects(scene.Meshes)
-	println(len(emissives))
+	println(len(vertices), len(tris), len(normals))
+
 	vnmu := &VNMU{
 		Vertices:          vertices,
 		Normals:           normals,

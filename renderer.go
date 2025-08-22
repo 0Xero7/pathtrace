@@ -285,6 +285,7 @@ func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Mat
 		if materials[i/3].Emissive.R > 0 || materials[i/3].Emissive.G > 0 || materials[i/3].Emissive.B > 0 {
 			tri := EmissiveTriangle{
 				VertexIndices: [3]int{tris[i], tris[i+1], tris[i+2]},
+				NormalIndices: [3]int{i, i + 1, i + 2},
 				MaterialIndex: i / 3,
 			}
 			emissives = append(emissives, tri)
