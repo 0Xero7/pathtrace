@@ -3,6 +3,8 @@ package main
 import (
 	"image/color"
 	"math"
+
+	"github.com/g3n/engine/math32"
 )
 
 type Vec3 struct {
@@ -119,5 +121,13 @@ func (v *Vec3) Inverse() Vec3 {
 		X: 1.0 / v.X,
 		Y: 1.0 / v.Y,
 		Z: 1.0 / v.Z,
+	}
+}
+
+func FromColor(col math32.Color) Vec3 {
+	return Vec3{
+		X: float64(col.R),
+		Y: float64(col.G),
+		Z: float64(col.B),
 	}
 }

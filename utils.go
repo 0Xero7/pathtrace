@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"math/rand"
 )
 
 func Humanize[T int | int32 | int64 | float64 | float32](val T) string {
@@ -183,6 +184,26 @@ func InterpolateNormal(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 
 	// It's crucial to re-normalize the result to ensure it's a valid unit vector.
 	return interpolatedNormal.Normalize()
+}
+
+func SampleTrianglePoint(A, B, C Vec3) Vec3 {
+	u := rand.Float64()
+	v := rand.Float64()
+
+	if u+v > 1 {
+		u = 1 - u
+		v = 1 - v
+	}
+
+	w := 1 - u - v
+	return A.Scale(w).Add(B.Scale(u)).Add(C.Scale(v))
+}
+
+func TriangleArea(A, B, C Vec3) float64 {
+	// Calculate the area using the cross product
+	AB := B.Sub(A)
+	AC := C.Sub(A)
+	return 0.5 * AB.Cross(AC).Length()
 }
 
 func Clamp01(val float64) float64 {

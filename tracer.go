@@ -9,7 +9,7 @@ import (
 var raysTraced atomic.Int64 = atomic.Int64{}
 var recentRaysTraced atomic.Int64 = atomic.Int64{}
 
-func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vertices, normals []Vec3, materials []*Material, uvs []float64, ambient float64, scene *Scene, indirectRay bool) Vec3 {
+func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vnmu *VNMU, ambient float64, scene *Scene, bounceIndex int) Vec3 {
 	rayPosition := ray.Origin
 	for range maxSteps {
 		intersects, t, tri := bvh.CheckIntersection(ray, stepSize)
@@ -20,23 +20,23 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 				tri.A,
 				tri.B,
 				tri.C,
-				normals[tri.Index],
-				normals[tri.Index+1],
-				normals[tri.Index+2],
+				vnmu.Normals[tri.Index],
+				vnmu.Normals[tri.Index+1],
+				vnmu.Normals[tri.Index+2],
 			).Normalize()
 
-			material := materials[tri.Index/3]
+			material := vnmu.Materials[tri.Index/3]
 			materialType := material.Illum
 			switch materialType {
 			case 3, 5, 7:
 				diffuseComponent := HandleDiffuseMaterial(
-					ray, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, scene, true, tri, intersection_point, rayPosition, normal,
+					ray, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, false, tri, intersection_point, rayPosition, normal, bounceIndex,
 				)
-				specularComponent := HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, scene, true, tri, intersection_point, rayPosition, normal)
+				specularComponent := HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
 				return diffuseComponent.Add(specularComponent)
 			default:
 				return HandleDiffuseMaterial(
-					ray, stepSize, bvh, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, scene, true, tri, intersection_point, rayPosition, normal,
+					ray, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex,
 				)
 			}
 		}
@@ -44,7 +44,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 		rayPosition = rayPosition.Add(ray.Direction.Scale(stepSize))
 	}
 
-	// return Vec3{}
+	return Vec3{}
 	// return Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255)
 	// Hits the sky
 	angle := ray.Direction.Dot(Vec3{Y: 1})
@@ -56,7 +56,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 	zenithColor := Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255)   // Deeper blue zenith
 
 	skyColor := horizonColor.Scale(1.0 - angle).Add(zenithColor.Scale(angle))
-	if indirectRay {
+	if bounceIndex == 0 {
 		skyColor = skyColor.Scale(0.5) // Dim the sky color for indirect rays
 	}
 	return skyColor
@@ -67,29 +67,19 @@ func HandleDiffuseMaterial(
 	stepSize float64,
 	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
-	vertices, normals []Vec3,
-	materials []*Material,
-	uvs []float64,
+	vnmu *VNMU,
 	ambient float64,
 	scene *Scene,
 	indirectRay bool,
 	tri *BVHTriangle,
 	intersection_point, rayPosition, normal Vec3,
+	bounceIndex int,
 ) Vec3 {
-	material := materials[tri.Index/3]
+	material := vnmu.Materials[tri.Index/3]
 	emissiveColor := material.Emissive
-	if indirectRay { // This is an indirect ray
+	if bounceIndex > 0 { // This is an indirect ray
 		if emissiveColor.R > 0 || emissiveColor.G > 0 || emissiveColor.B > 0 {
-			distance := intersection_point.Sub(rayPosition).Length()
-			attenuation := 1.0 / (1.0 + distance*distance*0.01)
-			lightIntensity := attenuation
-
-			// Return emissive light directly for GI
-			return Vec3{
-				X: float64(emissiveColor.R) * lightIntensity,
-				Y: float64(emissiveColor.G) * lightIntensity,
-				Z: float64(emissiveColor.B) * lightIntensity,
-			}
+			return FromColor(emissiveColor)
 		}
 	}
 
@@ -102,9 +92,9 @@ func HandleDiffuseMaterial(
 		triangleIndex := tri.Index / 3
 		baseUVIndex := triangleIndex * 6
 
-		uv0_x, uv0_y := uvs[baseUVIndex], uvs[baseUVIndex+1]
-		uv1_x, uv1_y := uvs[baseUVIndex+2], uvs[baseUVIndex+3]
-		uv2_x, uv2_y := uvs[baseUVIndex+4], uvs[baseUVIndex+5]
+		uv0_x, uv0_y := vnmu.UVs[baseUVIndex], vnmu.UVs[baseUVIndex+1]
+		uv1_x, uv1_y := vnmu.UVs[baseUVIndex+2], vnmu.UVs[baseUVIndex+3]
+		uv2_x, uv2_y := vnmu.UVs[baseUVIndex+4], vnmu.UVs[baseUVIndex+5]
 
 		// Calculate barycentric coordinates
 		v0 := tri.B.Sub(tri.A)
@@ -143,7 +133,7 @@ func HandleDiffuseMaterial(
 	// Sample bump map if available
 	if material.BumpImage != nil {
 		bumpNormal := SampleBumpMap(material.BumpImage, x, y, 30.0)
-		normal = TransformNormalToWorldSpace(bumpNormal, normal, tri, intersection_point, uvs).Normalize()
+		normal = TransformNormalToWorldSpace(bumpNormal, normal, tri, intersection_point, vnmu.UVs).Normalize()
 	}
 
 	// Create albedo vector
@@ -171,9 +161,56 @@ func HandleDiffuseMaterial(
 			Origin:    rayOrigin,
 			Direction: lightDirection,
 		}
-		contribution := light.Object.Sample(lightRay, normal, bvh, stepSize)
+		contribution := light.Object.Sample(lightRay, normal, bvh, stepSize, light.Position)
 		// Apply lighting to albedo (not as multiplication but as proper lighting)
 		directContribution._Add(contribution)
+	}
+	// Now for emissive surfaces
+	if len(vnmu.EmissiveTriangles) > 0 {
+		rayOrigin := intersection_point.Add(normal.Scale(0.01))
+		emissiveContribution := func() Vec3 {
+			choice := rand.Intn(len(vnmu.EmissiveTriangles))
+			i0 := vnmu.EmissiveTriangles[choice].VertexIndices[0]
+			i1 := vnmu.EmissiveTriangles[choice].VertexIndices[1]
+			i2 := vnmu.EmissiveTriangles[choice].VertexIndices[2]
+
+			lightPoint := SampleTrianglePoint(vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2])
+			lightSurfaceNormal := InterpolateNormal(
+				lightPoint, vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2], vnmu.Normals[i0], vnmu.Normals[i1], vnmu.Normals[i2])
+			toLight := lightPoint.Sub(rayOrigin)
+			distance := toLight.Length()
+			toLight._Normalize()
+
+			ndotl := toLight.Dot(normal)
+			if ndotl <= 0 {
+				return Vec3{}
+			}
+
+			shadowRay := Ray{
+				Origin:    rayOrigin,
+				Direction: toLight,
+			}
+			shadow := bvh.QuickCheckIntersection(shadowRay, distance-0.01)
+			if shadow {
+				return Vec3{}
+			}
+			sndorl := toLight.Dot(lightSurfaceNormal)
+			if sndorl <= 0 {
+				return Vec3{}
+			}
+
+			geometryTerm := ndotl * sndorl / (distance * distance)
+			pdf := TriangleArea(vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2])
+			pdf = 1.0 / (pdf * float64(len(vnmu.EmissiveTriangles)))
+
+			lightMaterial := FromColor(vnmu.Materials[vnmu.EmissiveTriangles[choice].MaterialIndex].Emissive).Scale(5) //) vnmu.Materials[vnmu.EmissiveTriangles[choice*3]]
+			// lightEmission := FromColor(lightMaterial.Emissive)
+			lightEmission := lightMaterial
+			brdf := albedo.Scale(1.0 / math.Pi)
+
+			return lightEmission.ComponentMul(brdf).Scale(geometryTerm / pdf)
+		}()
+		directContribution._Add(emissiveContribution)
 	}
 
 	// GI Rays
@@ -209,7 +246,7 @@ func HandleDiffuseMaterial(
 			dir._Normalize()
 
 			ray := NewRay(intersection_point.Add(normal.Scale(0.001)), dir)
-			contribution := TraceRay(ray, stepSize, bvh, maxSteps, bounces-1, scatterRays, vertices, normals, materials, uvs, ambient, scene, true)
+			contribution := TraceRay(ray, stepSize, bvh, maxSteps, bounces-1, scatterRays, vnmu, ambient, scene, bounceIndex+1)
 			// lambert := dir.Dot(normal)
 
 			// Apply albedo to incoming light, not as multiplication
@@ -219,18 +256,21 @@ func HandleDiffuseMaterial(
 		indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))
 	}
 
-	// Emissive contribution (only add once)
-	emissiveContribution := Vec3{
-		X: float64(emissiveColor.R),
-		Y: float64(emissiveColor.G),
-		Z: float64(emissiveColor.B),
-	}
+	// // Emissive contribution (only add once)
+	// emissiveContribution := Vec3{
+	// 	X: float64(emissiveColor.R),
+	// 	Y: float64(emissiveColor.G),
+	// 	Z: float64(emissiveColor.B),
+	// }
 
 	// Combine all lighting
 	final := directContribution.Clone()
 	final._Add(ambientContribution)
 	final._Add(indirectContribution.Scale(1))
-	final._Add(emissiveContribution) // Scale down GI to prevent overbright
+	// final._Add(emissiveContribution) // Scale down GI to prevent overbright
+	if bounceIndex == 0 && (emissiveColor.R > 0 || emissiveColor.G > 0 || emissiveColor.B > 0) {
+		final._Add(FromColor(emissiveColor))
+	}
 
 	raysTraced.Add(1)
 	return final
@@ -241,16 +281,15 @@ func HandleReflectiveMaterial(
 	stepSize float64,
 	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
-	vertices, normals []Vec3,
-	materials []*Material,
-	uvs []float64,
+	vnmu *VNMU,
 	ambient float64,
 	scene *Scene,
 	indirectRay bool,
 	tri *BVHTriangle,
 	intersection_point, rayPosition, normal Vec3,
+	bounceIndex int,
 ) Vec3 {
-	material := materials[tri.Index/3]
+	material := vnmu.Materials[tri.Index/3]
 
 	// Convert shininess to roughness (higher shininess = lower roughness)
 	roughness := 1.0 / (1.0 + material.Shininess/100.0)
@@ -274,7 +313,8 @@ func HandleReflectiveMaterial(
 		contribution := TraceRay(
 			ray,
 			stepSize, bvh, maxSteps, bounces-1, scatterRays,
-			vertices, normals, materials, uvs, ambient, scene, true,
+			vnmu,
+			ambient, scene, bounceIndex+1,
 		)
 		reflectionContribution._Add(contribution)
 	}

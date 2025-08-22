@@ -262,7 +262,7 @@ func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriang
 	return worldSpaceNormal.Normalize()
 }
 
-func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Material, []float64) {
+func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Material, []float64, []EmissiveTriangle) {
 	vertices := make([]Vec3, 0)
 	tris := make([]int, 0)
 	normals := make([]Vec3, 0)
@@ -280,5 +280,16 @@ func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Mat
 		uvs = append(uvs, object.Mesh.UVs...)
 	}
 
-	return vertices, tris, normals, materials, uvs
+	emissives := make([]EmissiveTriangle, 0)
+	for i := 0; i < len(tris); i += 3 {
+		if materials[i/3].Emissive.R > 0 || materials[i/3].Emissive.G > 0 || materials[i/3].Emissive.B > 0 {
+			tri := EmissiveTriangle{
+				VertexIndices: [3]int{tris[i], tris[i+1], tris[i+2]},
+				MaterialIndex: i / 3,
+			}
+			emissives = append(emissives, tri)
+		}
+	}
+
+	return vertices, tris, normals, materials, uvs, emissives
 }

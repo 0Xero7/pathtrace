@@ -503,13 +503,16 @@ func main() {
 		Position: Vec3{Z: 0},
 		Mesh:     sponzaMesh,
 	})
-	sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
-		Object: &Sun{
-			Direction: Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize(),
-			Intensity: 1,
-			Color:     Vec3{}.Ones(),
+	sponzaScene.Lights = append(
+		sponzaScene.Lights,
+		&GameObject[Light]{
+			Object: &Sun{
+				Direction: Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize(),
+				Intensity: 1,
+				Color:     Vec3{}.Ones(),
+			},
 		},
-	})
+	)
 	// sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
 	// 	Object: &Sun{
 	// 		Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
@@ -533,6 +536,16 @@ func main() {
 		Position: Vec3{Z: 0},
 		Mesh:     cornellMesh,
 	})
+	// cornellSphereScene.Lights = append(
+	// 	cornellSphereScene.Lights,
+	// 	&GameObject[Light]{
+	// 		Position: Vec3{Y: 1, Z: -0.5},
+	// 		Object: &PointLight{
+	// 			Intensity: 0.1,
+	// 			Color:     Vec3{X: 1},
+	// 		},
+	// 	},
+	// )
 
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
 
@@ -656,8 +669,15 @@ func main() {
 
 	w.Show()
 
-	vertices, tris, normals, materials, uvs := DecomposeObjects(scene.Meshes)
-	println(len(materials))
+	vertices, tris, normals, materials, uvs, emissives := DecomposeObjects(scene.Meshes)
+	println(len(emissives))
+	vnmu := &VNMU{
+		Vertices:          vertices,
+		Normals:           normals,
+		Materials:         materials,
+		UVs:               uvs,
+		EmissiveTriangles: emissives,
+	}
 
 	fmt.Println("BVH Building...")
 	bvhx := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 42)
@@ -731,7 +751,7 @@ func main() {
 					}.Normalize()
 
 					ray := NewRay(camera.Position, rayDirection)
-					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vertices, normals, materials, uvs, ambient, &scene, false)
+					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vnmu, ambient, &scene, 0)
 
 					// Accumulate color
 					pixel.AddSample(rayColor)
