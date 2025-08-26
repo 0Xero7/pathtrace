@@ -294,3 +294,15 @@ func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Mat
 
 	return vertices, tris, normals, materials, uvs, emissives
 }
+
+func MISWeight(pdf1, pdf2 float64) float64 {
+	if pdf1 <= 0 {
+		return 0
+	}
+	if pdf2 <= 0 {
+		return 1 // If other PDF is 0, this technique gets full weight
+	}
+	p1 := pdf1 * pdf1
+	p2 := pdf2 * pdf2
+	return p1 / (p1 + p2)
+}

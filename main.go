@@ -436,15 +436,15 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 512
-	height := 512
+	width := 768
+	height := 768
 
 	showStats := true
 
-	bounces := 4
-	samplesPerPixel := 4
-	maxSamplesPerPixel := 16
-	scatterRays := 4
+	bounces := 16
+	samplesPerPixel := 64
+	maxSamplesPerPixel := 1024
+	scatterRays := 1
 	ambient := 0.0
 	maxSteps := 1
 	stepSize := 1000.0
@@ -507,8 +507,8 @@ func main() {
 		sponzaScene.Lights,
 		&GameObject[Light]{
 			Object: &Sun{
-				Direction: Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize(),
-				Intensity: 1,
+				Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
+				Intensity: 2,
 				Color:     Vec3{}.Ones(),
 			},
 		},
@@ -549,9 +549,16 @@ func main() {
 
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
 
-	// scene := sponzaScene
-	scene := cornellSphereScene
+	scene := sponzaScene
+	// scene := cornellSphereScene
 	camera := *scene.Camera
+
+	var sunLight *Sun
+	for _, light := range scene.Lights {
+		if l, ok := light.Object.(*Sun); ok {
+			sunLight = l
+		}
+	}
 
 	// 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
 	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B2.obj", 1)
@@ -639,18 +646,18 @@ func main() {
 			bounces--
 			dirty = true
 
-		// case fyne.KeyUp:
-		// 	sunDirection.Z += 0.1
-		// 	dirty = true
-		// case fyne.KeyDown:
-		// 	sunDirection.Z -= 0.1
-		// 	dirty = true
-		// case fyne.KeyLeft:
-		// 	sunDirection.X -= 0.1
-		// 	dirty = true
-		// case fyne.KeyRight:
-		// 	sunDirection.X += 0.1
-		// 	dirty = true
+		case fyne.KeyUp:
+			sunLight.Direction.Z += 0.1
+			dirty = true
+		case fyne.KeyDown:
+			sunLight.Direction.Z -= 0.1
+			dirty = true
+		case fyne.KeyLeft:
+			sunLight.Direction.X -= 0.1
+			dirty = true
+		case fyne.KeyRight:
+			sunLight.Direction.X += 0.1
+			dirty = true
 
 		case fyne.KeyH:
 			showStats = !showStats
@@ -719,12 +726,12 @@ func main() {
 			case <-stopRendering:
 				return
 			default:
-				if !renderingActive.Load() {
-					time.Sleep(time.Millisecond)
-					continue
-				}
+				// if !renderingActive.Load() {
+				// 	time.Sleep(time.Millisecond)
+				// 	continue
+				// }
 
-				// pixel := tiles[tileIndex].GetLeastSampledPixel()
+				// pixel := tiles[tileIndex].GetLeastSampledPixel(maxSamplesPerPixel)
 				pixel := tiles[tileIndex].GetNoisiestPixel(maxSamplesPerPixel)
 				if pixel == nil {
 					fmt.Println("Tile", tileIndex, "completed rendering.")
@@ -752,7 +759,7 @@ func main() {
 					}.Normalize()
 
 					ray := NewRay(camera.Position, rayDirection)
-					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vnmu, ambient, &scene, 0)
+					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vnmu, ambient, &scene, 0, Vec3{}, false)
 
 					// Accumulate color
 					pixel.AddSample(rayColor)
