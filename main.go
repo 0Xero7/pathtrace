@@ -647,17 +647,25 @@ func main() {
 			dirty = true
 
 		case fyne.KeyUp:
-			sunLight.Direction.Z += 0.1
-			dirty = true
+			if sunLight != nil {
+				sunLight.Direction.Z += 0.1
+				dirty = true
+			}
 		case fyne.KeyDown:
-			sunLight.Direction.Z -= 0.1
-			dirty = true
+			if sunLight != nil {
+				sunLight.Direction.Z -= 0.1
+				dirty = true
+			}
 		case fyne.KeyLeft:
-			sunLight.Direction.X -= 0.1
-			dirty = true
+			if sunLight != nil {
+				sunLight.Direction.X -= 0.1
+				dirty = true
+			}
 		case fyne.KeyRight:
-			sunLight.Direction.X += 0.1
-			dirty = true
+			if sunLight != nil {
+				sunLight.Direction.X += 0.1
+				dirty = true
+			}
 
 		case fyne.KeyH:
 			showStats = !showStats
