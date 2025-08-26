@@ -104,22 +104,10 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 		rayPosition = rayPosition.Add(ray.Direction.Scale(stepSize))
 	}
 
-	// return Vec3{}
-	// return Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255)
-	// Hits the sky
-	angle := ray.Direction.Dot(Vec3{Y: 1})
-	if angle < 0 {
-		return Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255)
+	if scene.Skybox == nil {
+		return Vec3{}
 	}
-
-	horizonColor := Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255) // Light blue horizon
-	zenithColor := Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255)   // Deeper blue zenith
-
-	skyColor := horizonColor.Scale(1.0 - angle).Add(zenithColor.Scale(angle))
-	if bounceIndex == 0 {
-		skyColor = skyColor.Scale(0.5) // Dim the sky color for indirect rays
-	}
-	return skyColor
+	return scene.Skybox.Sample(ray.Direction)
 }
 
 func HandleDiffuseMaterial(
@@ -185,15 +173,11 @@ func HandleDiffuseMaterial(
 		diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 2.2))
 		diffuseColor.G = float32(math.Pow(float64(sampledColor.G)/255.0, 2.2))
 		diffuseColor.B = float32(math.Pow(float64(sampledColor.B)/255.0, 2.2))
-
-		// diffuseColor.R = float32(sampledColor.R) / 255.0
-		// diffuseColor.G = float32(sampledColor.G) / 255.0
-		// diffuseColor.B = float32(sampledColor.B) / 255.0
 	}
 
 	// Sample bump map if available
 	if material.BumpImage != nil {
-		bumpNormal := SampleBumpMap(material.BumpImage, x, y, 30.0)
+		bumpNormal := SampleBumpMap(material.BumpImage, x, y, 1.0)
 		normal = TransformNormalToWorldSpace(bumpNormal, normal, tri, intersection_point, vnmu.UVs).Normalize()
 	}
 
@@ -210,6 +194,22 @@ func HandleDiffuseMaterial(
 	// Calculate direct lighting
 	var directContribution Vec3
 	rayOrigin := intersection_point.Add(normal.Scale(0.001))
+
+	// From Skybox
+	if scene.Skybox != nil {
+		for range 1 {
+			randomNormal := GetCosineWeighedHemisphereSampling(normal)
+			ray := Ray{
+				Origin:    rayOrigin,
+				Direction: randomNormal,
+			}
+			if !bvh.QuickCheckIntersection(ray, 100000.0) {
+				directContribution.Add(scene.Skybox.Sample(randomNormal).Scale(1.0 / 1.0).ComponentMul(albedo))
+			}
+		}
+	}
+
+	// From lights
 	for _, light := range scene.Lights {
 		var lightDirection Vec3
 		sun, isSun := light.Object.(*Sun)
@@ -302,20 +302,7 @@ func HandleDiffuseMaterial(
 		tangent2 := normal.Cross(tangent1)
 
 		for range scatterRays {
-			u1 := rand.Float64()
-			u2 := rand.Float64()
-
-			r := math.Sqrt(u1)
-			theta := 2 * math.Pi * u2
-
-			x := r * math.Cos(theta)
-			y := r * math.Sin(theta)
-			z := math.Sqrt(math.Max(0.0, 1.0-u1)) // This equals cos(phi)
-
-			dir = tangent1.Scale(x)
-			dir._Add(tangent2.Scale(y))
-			dir._Add(normal.Scale(z))
-			dir._Normalize()
+			dir = GetCosineWeighedHemisphereSampling2(normal, tangent1, tangent2)
 
 			ray := NewRay(intersection_point.Add(normal.Scale(0.001)), dir)
 			contribution := TraceRay(ray, stepSize, bvh, maxSteps, bounces-1, scatterRays, vnmu, ambient, scene, bounceIndex+1, normal, false)

@@ -441,9 +441,9 @@ func main() {
 
 	showStats := true
 
-	bounces := 16
-	samplesPerPixel := 64
-	maxSamplesPerPixel := 1024
+	bounces := 2
+	samplesPerPixel := 128
+	maxSamplesPerPixel := 128
 	scatterRays := 1
 	ambient := 0.0
 	maxSteps := 1
@@ -508,11 +508,17 @@ func main() {
 		&GameObject[Light]{
 			Object: &Sun{
 				Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
-				Intensity: 2,
+				Intensity: 3,
 				Color:     Vec3{}.Ones(),
 			},
 		},
 	)
+	sponzaScene.Skybox = &GradientSkybox{
+		GroundColor:  Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255),
+		HorizonColor: Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255),
+		ZenithColor:  Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255),
+		Intensity:    4,
+	}
 	// sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
 	// 	Object: &Sun{
 	// 		Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
@@ -536,6 +542,7 @@ func main() {
 		Position: Vec3{Z: 0},
 		Mesh:     cornellMesh,
 	})
+	cornellSphereScene.Skybox = &SolidColorSkybox{}
 	// cornellSphereScene.Lights = append(
 	// 	cornellSphereScene.Lights,
 	// 	&GameObject[Light]{

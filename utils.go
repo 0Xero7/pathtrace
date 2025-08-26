@@ -209,3 +209,53 @@ func TriangleArea(A, B, C Vec3) float64 {
 func Clamp01(val float64) float64 {
 	return math.Max(0, math.Min(1, val))
 }
+
+func GetCosineWeighedHemisphereSampling(normal Vec3) Vec3 {
+	var up Vec3
+	if math.Abs(normal.Y) < 0.999 {
+		up = Vec3{X: 0, Y: 1, Z: 0}
+	} else {
+		up = Vec3{X: 1, Y: 0, Z: 0}
+	}
+
+	tangent1 := normal.Cross(up)
+	tangent1._Normalize()
+
+	tangent2 := normal.Cross(tangent1)
+
+	u1 := rand.Float64()
+	u2 := rand.Float64()
+
+	r := math.Sqrt(u1)
+	theta := 2 * math.Pi * u2
+
+	x := r * math.Cos(theta)
+	y := r * math.Sin(theta)
+	z := math.Sqrt(math.Max(0.0, 1.0-u1)) // This equals cos(phi)
+
+	dir := tangent1.Scale(x)
+	dir._Add(tangent2.Scale(y))
+	dir._Add(normal.Scale(z))
+	dir._Normalize()
+
+	return dir
+}
+
+func GetCosineWeighedHemisphereSampling2(normal, tangent1, tangent2 Vec3) Vec3 {
+	u1 := rand.Float64()
+	u2 := rand.Float64()
+
+	r := math.Sqrt(u1)
+	theta := 2 * math.Pi * u2
+
+	x := r * math.Cos(theta)
+	y := r * math.Sin(theta)
+	z := math.Sqrt(math.Max(0.0, 1.0-u1)) // This equals cos(phi)
+
+	dir := tangent1.Scale(x)
+	dir._Add(tangent2.Scale(y))
+	dir._Add(normal.Scale(z))
+	dir._Normalize()
+
+	return dir
+}
