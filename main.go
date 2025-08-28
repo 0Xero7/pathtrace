@@ -436,14 +436,14 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 768
-	height := 768
+	width := 512
+	height := 512
 
 	showStats := true
 
-	bounces := 2
-	samplesPerPixel := 128
-	maxSamplesPerPixel := 128
+	bounces := 1
+	samplesPerPixel := 64
+	maxSamplesPerPixel := 64
 	scatterRays := 1
 	ambient := 0.0
 	maxSteps := 1

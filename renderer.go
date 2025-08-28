@@ -92,8 +92,8 @@ var images map[string]CachedImage = map[string]CachedImage{}
 
 //go:nosplit
 func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
-	px := int(x * float64(img.Width))
-	py := int(y * float64(img.Height))
+	px := int(x * float64(img.Width-1))
+	py := int(y * float64(img.Height-1))
 
 	offset := (py*(img.Width) + px) << 2
 
@@ -108,8 +108,8 @@ func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
 
 func SampleBumpMap(img *CachedImage, x, y float64, strength float64) Vec3 {
 	// Wrap coordinates to handle texture edges
-	x = math.Mod(x, 1.0)
-	y = math.Mod(y, 1.0)
+	// x = math.Mod(x, 1.0)
+	// y = math.Mod(y, 1.0)
 
 	// Calculate offset based on texture resolution for consistent sampling
 	w, h := float64(img.Width), float64(img.Height)

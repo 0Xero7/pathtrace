@@ -8,12 +8,11 @@ import (
 )
 
 func tile(val float64) float64 {
-	if val < 0 {
-		fmt.Println(val, "negative")
-		os.Exit(1)
+	_, vf := math.Modf(val)
+	if vf < 0 {
+		vf = 1 + vf
 	}
-	f := val - float64(int(val))
-	return f
+	return vf
 }
 
 func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
@@ -84,15 +83,15 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 		mats = append(mats, object.Materials[face.Material])
 
 		if len(object.Uvs) > 0 {
+			us := make([]float64, 3)
+			vs := make([]float64, 3)
 			for i := range 3 {
 				uvIndex := face.Uvs[i]
-				u := (float64(object.Uvs[uvIndex*2])) // X coordinate
-				u -= math.Floor(u)
-
-				v := (float64(object.Uvs[uvIndex*2+1])) // Y coordinate
-				v -= math.Floor(v)
-
-				uvs = append(uvs, u, v)
+				u := (float64(object.Uvs[uvIndex*2]))         // X coordinate
+				v := 1.0 - (float64(object.Uvs[uvIndex*2+1])) // Y coordinate
+				us[i] = u
+				vs[i] = v
+				uvs = append(uvs, us[i], vs[i])
 			}
 		}
 

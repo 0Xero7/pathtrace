@@ -161,8 +161,8 @@ func HandleDiffuseMaterial(
 		v := (dot00*dot12 - dot01*dot02) * invDenom
 		w := 1.0 - u - v
 
-		x = (w*uv0_x + u*uv1_x + v*uv2_x)
-		y = (w*uv0_y + u*uv1_y + v*uv2_y)
+		x = tile(w*uv0_x + u*uv1_x + v*uv2_x)
+		y = tile(w*uv0_y + u*uv1_y + v*uv2_y)
 	}
 
 	// Sample texture if available
