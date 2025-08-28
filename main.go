@@ -703,8 +703,20 @@ func main() {
 	}
 
 	fmt.Println("BVH Building...")
+
+	cpuFile, err := os.Create("cpu.prof")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cpuFile.Close()
+	pprof.StartCPUProfile(cpuFile)
+
+	bvhSt := time.Now()
 	bvhx := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 42)
-	fmt.Println("BVH Built!")
+	bvhSSt := time.Since(bvhSt).Milliseconds()
+	pprof.StopCPUProfile()
+
+	fmt.Println("BVH Built in", bvhSSt, "ms")
 	fmt.Println(bvhx.GetStats(1))
 	linearBVH := ConstructLinearBVH(bvhx)
 
@@ -714,18 +726,10 @@ func main() {
 
 	// randomSampling := true
 
-	cpuFile, err := os.Create("cpu.prof")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer cpuFile.Close()
-
-	pprof.StartCPUProfile(cpuFile)
-
-	go func() {
-		time.Sleep(30 * time.Second)
-		pprof.StopCPUProfile()
-	}()
+	// go func() {
+	// 	time.Sleep(30 * time.Second)
+	// 	pprof.StopCPUProfile()
+	// }()
 
 	// Channel to signal render workers to stop
 	stopRendering := make(chan bool)
