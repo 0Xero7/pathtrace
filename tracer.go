@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 	"sync/atomic"
 )
 
@@ -72,10 +73,35 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 				specularComponent := HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
 				return diffuseComponent.Add(specularComponent)
 			default:
-				dc, isIndirectEmissive := HandleDiffuseMaterial(
+				var directContribution Vec3
+				var isIndirectEmissive bool
+
+				if strings.HasPrefix(material.Name, "Glass") {
+					directContribution, isIndirectEmissive = HandleRefractiveMaterial(
+						ray,
+						stepSize,
+						bvh,
+						maxSteps,
+						bounces,
+						scatterRays,
+						vnmu,
+						ambient,
+						scene,
+						true,
+						tri,
+						intersection_point,
+						rayPosition,
+						normal,
+						bounceIndex,
+						lastSuraceNormal,
+					)
+				}
+				// else {
+				directContribution, isIndirectEmissive = HandleDiffuseMaterial(
 					ray, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex, lastSuraceNormal,
 				)
-
+				isSpecular = true
+				// }
 				if isIndirectEmissive && !isSpecular {
 					// Do MIS
 					pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
@@ -93,11 +119,12 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 					// 4. Calculate MIS weight
 					weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
-					dc._Scale(weight)
+					directContribution._Scale(weight)
 
 					// fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
 				}
-				return dc
+
+				return directContribution
 			}
 		}
 
@@ -108,6 +135,89 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 		return Vec3{}
 	}
 	return scene.Skybox.Sample(ray.Direction)
+}
+
+func HandleRefractiveMaterial(
+	ray Ray,
+	stepSize float64,
+	bvh *LinearBVH,
+	maxSteps, bounces, scatterRays int,
+	vnmu *VNMU,
+	ambient float64,
+	scene *Scene,
+	indirectRay bool,
+	tri *BVHTriangle,
+	intersection_point, rayPosition, normal Vec3,
+	bounceIndex int,
+	lastSurfaceNormal Vec3,
+) (Vec3, bool) {
+	material := vnmu.Materials[tri.Index/3]
+	n2 := float64(material.Refraction)
+
+	refractedRayDir, tir := GetRefractedRay(ray.Direction, normal, 1.0, n2)
+	if tir { // Total Internal Reflection
+		return TraceRay(Ray{
+			Origin:    intersection_point.Add(refractedRayDir.Scale(0.001)),
+			Direction: refractedRayDir,
+		}, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, lastSurfaceNormal, true), false
+	}
+
+	var outgoingRay Ray
+	var o_outgoingNormal Vec3
+	var wentOut bool = false
+
+	energy := 0.95
+	// We are now inside the object
+	for energy > 1e-4 {
+		refractionPoint := intersection_point.Add(refractedRayDir.Scale(0.001))
+		refractedRay := Ray{
+			Origin:    refractionPoint,
+			Direction: refractedRayDir,
+		}
+		intersects, t, intri := bvh.CheckIntersection(refractedRay, stepSize)
+		if !intersects {
+			return TraceRay(refractedRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, lastSurfaceNormal, true), false
+		}
+
+		// Find the next point inside the object where the ray hits
+		outgoingIntersectionPoint := refractionPoint.Add(refractedRayDir.Scale(t))
+		outgoingNormal := InterpolateNormal(
+			outgoingIntersectionPoint,
+			intri.A,
+			intri.B,
+			intri.C,
+			vnmu.Normals[intri.Index],
+			vnmu.Normals[intri.Index+1],
+			vnmu.Normals[intri.Index+2],
+		).Normalize()
+
+		outgoingRayDir, tir := GetRefractedRay(refractedRayDir, outgoingNormal.Scale(-1), n2, 1.0)
+		if !tir {
+			wentOut = true
+			outgoingRay = Ray{
+				Origin:    outgoingIntersectionPoint,
+				Direction: outgoingRayDir,
+			}
+			o_outgoingNormal = outgoingNormal
+			break
+		}
+
+		// Total internal reflection!
+		outgoingRay = Ray{
+			Origin:    outgoingIntersectionPoint,
+			Direction: outgoingRayDir,
+		}
+		refractedRayDir = outgoingRayDir
+		intersection_point = outgoingIntersectionPoint
+		o_outgoingNormal = outgoingNormal
+		energy = energy * 0.9 // Lose some energy on each internal reflection
+	}
+
+	if !wentOut {
+		return Vec3{}, false
+	}
+
+	return TraceRay(outgoingRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, o_outgoingNormal, true).Scale(energy), false
 }
 
 func HandleDiffuseMaterial(

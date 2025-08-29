@@ -32,7 +32,7 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 			} else {
 				file, err := os.Open(texPath)
 				if err != nil {
-					fmt.Println(err)
+					fmt.Println("Error loading texture", texPath, ":", err)
 					os.Exit(1)
 				}
 

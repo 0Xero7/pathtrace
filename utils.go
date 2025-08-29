@@ -259,3 +259,20 @@ func GetCosineWeighedHemisphereSampling2(normal, tangent1, tangent2 Vec3) Vec3 {
 
 	return dir
 }
+
+func reflect(V, N Vec3) Vec3 {
+	return V.Sub(N.Scale(2 * V.Dot(N)))
+}
+
+func GetRefractedRay(inDir, inNormal Vec3, n1, n2 float64) (Vec3, bool) {
+	// T = R * A + (R * c - √(1 - R² * (1 - c²))) * N
+	A := inDir.Normalize()
+	N := inNormal.Normalize()
+	R := n1 / n2
+	c := -A.Dot(N)
+	D := 1 - R*R*(1-c*c)
+	if D < 0 {
+		return reflect(inDir, inNormal), true
+	}
+	return (A.Scale(R).Add(N.Scale(c*R - math.Sqrt(D)))).Normalize(), false
+}

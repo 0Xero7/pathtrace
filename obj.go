@@ -934,7 +934,7 @@ func (dec *Decoder) parseMapBump(fields []string) error {
 	if len(fields) < 1 {
 		return dec.formatError("No fields")
 	}
-	dec.matCurrent.MapBump = fields[0]
+	dec.matCurrent.MapBump = fields[len(fields)-1]
 	return nil
 }
 
