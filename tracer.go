@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"strings"
@@ -30,9 +29,9 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 			material := vnmu.Materials[tri.Index/3]
 			materialType := material.Illum
 
-			switch materialType {
-			case 3, 5, 7:
-				diffuseComponent, isIndirectEmissive := HandleDiffuseMaterial(
+			refractiveComponent := Vec3{}
+			if strings.HasPrefix(material.Name, "Glass") {
+				component, _ := HandleRefractiveMaterial(
 					ray,
 					stepSize,
 					bvh,
@@ -42,7 +41,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 					vnmu,
 					ambient,
 					scene,
-					false,
+					true,
 					tri,
 					intersection_point,
 					rayPosition,
@@ -50,34 +49,39 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 					bounceIndex,
 					lastSuraceNormal,
 				)
+				refractiveComponent = component
+				// specularComponent := HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
+				// directContribution._Add(specularComponent)
+			}
 
-				if isIndirectEmissive && !isSpecular {
-					// Do MIS
-					pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
+			reflectivity := (material.Specular.R + material.Specular.G + material.Specular.B) / 3.0
+			// fmt.Println(materialType, material.Name, reflectivity)
+			switch materialType {
+			// ambientContribution, _ := HandleAmbientMaterial(
+			// 	ray,
+			// 	stepSize,
+			// 	bvh,
+			// 	maxSteps,
+			// 	bounces,
+			// 	scatterRays,
+			// 	vnmu,
+			// 	ambient,
+			// 	scene,
+			// 	false,
+			// 	tri,
+			// 	intersection_point,
+			// 	rayPosition,
+			// 	normal,
+			// 	bounceIndex,
+			// 	lastSuraceNormal,
+			// )
+			// return ambientContribution
 
-					triangle_area := TriangleArea(tri.A, tri.B, tri.C)
-					pdf_NEE_area := 1.0 / (float64(len(vnmu.EmissiveTriangles)) * triangle_area)
-
-					lightNormal := normal
-					cosLight := max(0, ray.Direction.Dot(lightNormal))
-					distance := intersection_point.Sub(ray.Origin).Length()
-					pdf_NEE_solidAngle := pdf_NEE_area * distance * distance / cosLight
-
-					// 4. Calculate MIS weight
-					weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
-					diffuseComponent._Scale(weight)
-
-					fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
-				}
-
-				specularComponent := HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
-				return diffuseComponent.Add(specularComponent)
 			default:
-				var directContribution Vec3
-				var isIndirectEmissive bool
-
-				if strings.HasPrefix(material.Name, "Glass") {
-					directContribution, isIndirectEmissive = HandleRefractiveMaterial(
+				switch {
+				case reflectivity < 0.1:
+					// Handle low reflectivity
+					diffuseComponent, isIndirectEmissive := HandleDiffuseMaterial(
 						ray,
 						stepSize,
 						bvh,
@@ -87,7 +91,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 						vnmu,
 						ambient,
 						scene,
-						true,
+						false,
 						tri,
 						intersection_point,
 						rayPosition,
@@ -95,36 +99,82 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 						bounceIndex,
 						lastSuraceNormal,
 					)
+
+					if isIndirectEmissive && !isSpecular {
+						// Do MIS
+						pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
+
+						triangle_area := TriangleArea(tri.A, tri.B, tri.C)
+						pdf_NEE_area := 1.0 / (float64(len(vnmu.EmissiveTriangles)) * triangle_area)
+
+						lightNormal := normal
+						cosLight := max(0, ray.Direction.Dot(lightNormal))
+						distance := intersection_point.Sub(ray.Origin).Length()
+						pdf_NEE_solidAngle := pdf_NEE_area * distance * distance / cosLight
+
+						// 4. Calculate MIS weight
+						weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
+						diffuseComponent._Scale(weight)
+
+						// fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
+					}
+
+					return refractiveComponent.Add(diffuseComponent)
+				case reflectivity < 0.9:
+					// Handle medium reflectivity
+					isReflectiveRay := rand.Float64() < float64(reflectivity)
+					if isReflectiveRay {
+						return refractiveComponent.Add(HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex))
+					} else {
+
+						diffuseComponent, isIndirectEmissive := HandleDiffuseMaterial(
+							ray,
+							stepSize,
+							bvh,
+							maxSteps,
+							bounces,
+							scatterRays,
+							vnmu,
+							ambient,
+							scene,
+							false,
+							tri,
+							intersection_point,
+							rayPosition,
+							normal,
+							bounceIndex,
+							lastSuraceNormal,
+						)
+
+						if isIndirectEmissive && !isSpecular {
+							// Do MIS
+							pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
+
+							triangle_area := TriangleArea(tri.A, tri.B, tri.C)
+							pdf_NEE_area := 1.0 / (float64(len(vnmu.EmissiveTriangles)) * triangle_area)
+
+							lightNormal := normal
+							cosLight := max(0, ray.Direction.Dot(lightNormal))
+							distance := intersection_point.Sub(ray.Origin).Length()
+							pdf_NEE_solidAngle := pdf_NEE_area * distance * distance / cosLight
+
+							// 4. Calculate MIS weight
+							weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
+							diffuseComponent._Scale(weight)
+
+							// fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
+						}
+
+						return refractiveComponent.Add(diffuseComponent)
+					}
+				default:
+					// os.Exit(1)
+					// return Vec3{}
+					// Handle high reflectivity\
+					return HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
 				}
-				// else {
-				directContribution, isIndirectEmissive = HandleDiffuseMaterial(
-					ray, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex, lastSuraceNormal,
-				)
-				isSpecular = true
-				// }
-				if isIndirectEmissive && !isSpecular {
-					// Do MIS
-					pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
-
-					triangle_area := TriangleArea(tri.A, tri.B, tri.C)
-					// total_light_area := float64(len(vnmu.EmissiveTriangles)) * triangle_area
-					// fmt.Printf("DEBUG: Triangle Area = %.4f, Total Light Area = %.4f\n", triangle_area, total_light_area)
-
-					pdf_NEE_area := 1.0 / (float64(len(vnmu.EmissiveTriangles)) * triangle_area)
-
-					lightNormal := normal
-					cosLight := max(0, ray.Direction.Dot(lightNormal))
-					distance := intersection_point.Sub(ray.Origin).Length()
-					pdf_NEE_solidAngle := pdf_NEE_area * distance * distance / cosLight
-
-					// 4. Calculate MIS weight
-					weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
-					directContribution._Scale(weight)
-
-					// fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
-				}
-
-				return directContribution
+				// case 4:
+				// 	return refractiveComponent
 			}
 		}
 
@@ -218,6 +268,99 @@ func HandleRefractiveMaterial(
 	}
 
 	return TraceRay(outgoingRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, o_outgoingNormal, true).Scale(energy), false
+}
+
+func HandleAmbientMaterial(
+	ray Ray,
+	stepSize float64,
+	bvh *LinearBVH,
+	maxSteps, bounces, scatterRays int,
+	vnmu *VNMU,
+	ambient float64,
+	scene *Scene,
+	indirectRay bool,
+	tri *BVHTriangle,
+	intersection_point, rayPosition, normal Vec3,
+	bounceIndex int,
+	lastSurfaceNormal Vec3,
+) (Vec3, bool) {
+	material := vnmu.Materials[tri.Index/3]
+
+	// Get base diffuse color (albedo)
+	diffuseColor := material.Diffuse
+
+	// Calculate UV coordinates
+	var x, y float64
+	if material.HasImage {
+		triangleIndex := tri.Index / 3
+		baseUVIndex := triangleIndex * 6
+
+		uv0_x, uv0_y := vnmu.UVs[baseUVIndex], vnmu.UVs[baseUVIndex+1]
+		uv1_x, uv1_y := vnmu.UVs[baseUVIndex+2], vnmu.UVs[baseUVIndex+3]
+		uv2_x, uv2_y := vnmu.UVs[baseUVIndex+4], vnmu.UVs[baseUVIndex+5]
+
+		// Calculate barycentric coordinates
+		v0 := tri.B.Sub(tri.A)
+		v1 := tri.C.Sub(tri.A)
+		v2 := intersection_point.Sub(tri.A)
+
+		dot00 := v0.Dot(v0)
+		dot01 := v0.Dot(v1)
+		dot02 := v0.Dot(v2)
+		dot11 := v1.Dot(v1)
+		dot12 := v1.Dot(v2)
+
+		invDenom := 1.0 / (dot00*dot11 - dot01*dot01)
+		u := (dot11*dot02 - dot01*dot12) * invDenom
+		v := (dot00*dot12 - dot01*dot02) * invDenom
+		w := 1.0 - u - v
+
+		x = tile(w*uv0_x + u*uv1_x + v*uv2_x)
+		y = tile(w*uv0_y + u*uv1_y + v*uv2_y)
+	}
+
+	// Sample texture if available
+	if material.DiffuseImage != nil {
+		sampledColor := SampleDiffuseMap(material.DiffuseImage, x, y)
+
+		// Convert from sRGB to linear space for lighting calculations
+		diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 2.2))
+		diffuseColor.G = float32(math.Pow(float64(sampledColor.G)/255.0, 2.2))
+		diffuseColor.B = float32(math.Pow(float64(sampledColor.B)/255.0, 2.2))
+	}
+
+	// Sample bump map if available
+	if material.BumpImage != nil {
+		bumpNormal := SampleBumpMap(material.BumpImage, x, y, 1.0)
+		normal = TransformNormalToWorldSpace(bumpNormal, normal, tri, intersection_point, vnmu.UVs).Normalize()
+	}
+
+	// Create albedo vector
+	albedo := Vec3{
+		X: float64(diffuseColor.R),
+		Y: float64(diffuseColor.G),
+		Z: float64(diffuseColor.B),
+	}
+
+	// Calculate direct lighting
+	var directContribution Vec3
+	// rayOrigin := intersection_point.Add(normal.Scale(0.001))
+
+	// From Skybox
+	if scene.Skybox != nil {
+		for range 1 {
+			randomNormal := GetCosineWeighedHemisphereSampling(normal)
+			// ray := Ray{
+			// 	Origin:    rayOrigin,
+			// 	Direction: randomNormal,
+			// }
+			// if !bvh.QuickCheckIntersection(ray, 100000.0) {
+			directContribution._Add(scene.Skybox.Sample(randomNormal).ComponentMul(albedo))
+			// }
+		}
+	}
+
+	return directContribution, false
 }
 
 func HandleDiffuseMaterial(
@@ -314,7 +457,7 @@ func HandleDiffuseMaterial(
 				Direction: randomNormal,
 			}
 			if !bvh.QuickCheckIntersection(ray, 100000.0) {
-				directContribution.Add(scene.Skybox.Sample(randomNormal).Scale(1.0 / 1.0).ComponentMul(albedo))
+				directContribution = directContribution.Add(scene.Skybox.Sample(randomNormal).Scale(1.0 / 1.0).ComponentMul(albedo))
 			}
 		}
 	}

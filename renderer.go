@@ -9,13 +9,16 @@ import (
 )
 
 type Pixel struct {
-	X, Y        uint32
-	R, G, B     float64
-	SampleCount int
-	Variance    float64 // Add this
-	M2          Vec3    // For online variance calculation
-	Mean        Vec3    // Running mean
-	Lock        sync.Mutex
+	X, Y         uint32
+	R, G, B      float64
+	SampleCount  int
+	Variance     float64 // Add this
+	M2           Vec3    // For online variance calculation
+	Mean         Vec3    // Running mean
+	MinLuminance float64 // Add this
+	MaxLuminance float64 // Add this
+	Contrast     float64 // Add this
+	Lock         sync.Mutex
 }
 
 func (p *Pixel) AddSample(color Vec3) {
@@ -55,6 +58,30 @@ func (p *Pixel) AddSample(color Vec3) {
 	p.R += color.X
 	p.G += color.Y
 	p.B += color.Z
+
+	// 2. Calculate luminance of the new sample
+	luminance := colorToLuminance(color)
+
+	// 3. Update Min/Max Luminance
+	if p.SampleCount == 1 {
+		// If this is the first sample, it's both the min and max
+		p.MinLuminance = luminance
+		p.MaxLuminance = luminance
+	} else {
+		if luminance < p.MinLuminance {
+			p.MinLuminance = luminance
+		}
+		if luminance > p.MaxLuminance {
+			p.MaxLuminance = luminance
+		}
+	}
+
+	// 4. Update the pixel's contrast value
+	p.Contrast = p.MaxLuminance - p.MinLuminance
+}
+
+func colorToLuminance(color Vec3) float64 {
+	return 0.2126*color.X + 0.7152*color.Y + 0.0722*color.Z
 }
 
 type CachedImage struct {

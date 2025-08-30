@@ -436,13 +436,13 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 768
-	height := 768
+	width := 512
+	height := 512
 
 	showStats := true
 
 	bounces := 16
-	samplesPerPixel := 256
+	samplesPerPixel := 64
 	maxSamplesPerPixel := 1024
 	scatterRays := 1
 	ambient := 0.0
@@ -488,61 +488,64 @@ func main() {
 		}
 	}
 
-	// // ---------------------------- SPONZA ---------------------------------
-	// sponzaScene := Scene{}
-	// sponzaScene.Camera = &Camera{
-	// 	Position:         Vec3{X: -3.2, Y: 0.5, Z: 21},
-	// 	Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
-	// 	Right:            Vec3{X: 1, Y: 0, Z: 0},
-	// 	Up:               Vec3{X: 0, Y: -1, Z: 0},
-	// 	FrustrumDistance: 2,
-	// }
-	// sponzaScene.Camera.ApplyRotation(170.0*0.0174533, 165.0*0.0174533)
-	// sponzaMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1.5)
-	// sponzaScene.Meshes = append(sponzaScene.Meshes, &GameObject[any]{
-	// 	Position: Vec3{Z: 0},
-	// 	Mesh:     sponzaMesh,
-	// })
-	// sponzaScene.Lights = append(
-	// 	sponzaScene.Lights,
-	// 	&GameObject[Light]{
-	// 		Object: &Sun{
-	// 			Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
-	// 			Intensity: 3,
-	// 			Color:     Vec3{}.Ones(),
-	// 		},
+	// ---------------------------- SPONZA ---------------------------------
+	sponzaScene := Scene{}
+	sponzaScene.Camera = &Camera{
+		Position:         Vec3{X: -3.2, Y: 0.5, Z: 21},
+		Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
+		Right:            Vec3{X: 1, Y: 0, Z: 0},
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 2,
+	}
+	sponzaScene.Camera.ApplyRotation((170.0)*0.0174533, (165.0)*0.0174533)
+	sponzaMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\sponza.obj", 1.5)
+	// sponzaMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\SponzaDebug.obj", 1.5)
+	sponzaScene.Meshes = append(sponzaScene.Meshes, &GameObject[any]{
+		Position: Vec3{Z: 0},
+		Mesh:     sponzaMesh,
+	})
+	sponzaScene.Lights = append(
+		sponzaScene.Lights,
+		&GameObject[Light]{
+			Object: &Sun{
+				Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
+				Intensity: 3,
+				Color:     Vec3{}.Ones(),
+			},
+		},
+	)
+	sponzaScene.Skybox = &GradientSkybox{
+		GroundColor:  Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255),
+		HorizonColor: Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255),
+		ZenithColor:  Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255),
+		Intensity:    4,
+	}
+	// sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
+	// 	Object: &Sun{
+	// 		Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
+	// 		Intensity: 1,
+	// 		Color:     Vec3{Z: 1},
 	// 	},
-	// )
-	// sponzaScene.Skybox = &GradientSkybox{
-	// 	GroundColor:  Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255),
-	// 	HorizonColor: Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255),
-	// 	ZenithColor:  Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255),
-	// 	Intensity:    4,
-	// }
-	// // sponzaScene.Lights = append(sponzaScene.Lights, &GameObject[Light]{
-	// // 	Object: &Sun{
-	// // 		Direction: Vec3{X: 0.1, Y: 1, Z: 0.1}.Normalize(),
-	// // 		Intensity: 1,
-	// // 		Color:     Vec3{Z: 1},
-	// // 	},
-	// // })
-
-	// // ---------------------------- CORNELL SPHERE ---------------------------------
-	// cornellSphereScene := Scene{}
-	// cornellSphereScene.Camera = &Camera{
-	// 	Position:         Vec3{X: 0, Y: 0.7, Z: -2.2},
-	// 	Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
-	// 	Right:            Vec3{X: 1, Y: 0, Z: 0},
-	// 	Up:               Vec3{X: 0, Y: -1, Z: 0},
-	// 	FrustrumDistance: 2,
-	// }
-	// cornellSphereScene.Camera.ApplyRotation(0.0*0.0174533, 180.0*0.0174533)
-	// cornellMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
-	// cornellSphereScene.Meshes = append(cornellSphereScene.Meshes, &GameObject[any]{
-	// 	Position: Vec3{Z: 0},
-	// 	Mesh:     cornellMesh,
 	// })
-	// cornellSphereScene.Skybox = &SolidColorSkybox{}
+
+	// ---------------------------- CORNELL SPHERE ---------------------------------
+	cornellSphereScene := Scene{}
+	cornellSphereScene.Camera = &Camera{
+		Position:         Vec3{X: 0, Y: 0.7, Z: -2.2},
+		Forward:          Vec3{X: 0, Y: 0, Z: -1}.Normalize(),
+		Right:            Vec3{X: 1, Y: 0, Z: 0},
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 2,
+	}
+	cornellSphereScene.Camera.ApplyRotation(0.0*0.0174533, 180.0*0.0174533)
+	cornellMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
+	cornellSphereScene.Meshes = append(cornellSphereScene.Meshes, &GameObject[any]{
+		Position: Vec3{Z: 0},
+		Mesh:     cornellMesh,
+	})
+	cornellSphereScene.Skybox = &SolidColorSkybox{
+		Color: Vec3{}.Scale(0.2),
+	}
 
 	// // ---------------------------- Refractions ---------------------------------
 	// refractionsScene := Scene{}
@@ -576,45 +579,48 @@ func main() {
 	// ---------------------------- Chai ---------------------------------
 	chaiScene := Scene{}
 	chaiScene.Camera = &Camera{
-		Position:         Vec3{X: 0, Y: 2, Z: 7},
+		Position:         Vec3{X: 0, Y: 15, Z: 15},
 		Forward:          Vec3{X: 0, Y: 0, Z: 1}.Normalize(),
 		Right:            Vec3{X: -1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
 		FrustrumDistance: 2,
 	}
-	chaiScene.Camera.ApplyRotation(0.0*0.0174533, 180.0*0.0174533)
+	chaiScene.Camera.ApplyRotation(0.0*0.0174533, 220.0*0.0174533)
 	chaiMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Pick.obj", 1)
 	chaiScene.Meshes = append(chaiScene.Meshes, &GameObject[any]{
 		Position: Vec3{Z: 0},
 		Mesh:     chaiMesh,
 	})
 	chaiScene.Skybox = &SolidColorSkybox{
-		Color: Vec3{X: 0.1, Y: 0.1, Z: 0.1},
+		Color: Vec3{},
 	}
-	// chaiScene.Lights = append(chaiScene.Lights, &GameObject[Light]{
-	// 	Object: &Sun{
-	// 		Direction: Vec3{X: 0.5, Y: 1, Z: 1}.Normalize(),
-	// 		Intensity: 1,
-	// 		Color:     Vec3{}.Ones(),
-	// 	},
-	// })
-	// refractionsScene.Lights = append(
-	// 	refractionsScene.Lights,
-	// 	&GameObject[Light]{
-	// 		Position: Vec3{Y: 1, Z: -0.5},
-	// 		Object: &PointLight{
-	// 			Intensity: 0.1,
-	// 			Color:     Vec3{X: 1},
-	// 		},
-	// 	},
-	// )
+
+	// ---------------------------- Glasses ---------------------------------
+	glassesScene := Scene{}
+	glassesScene.Camera = &Camera{
+		Position:         Vec3{X: 0, Y: 2, Z: 3},
+		Forward:          Vec3{X: 0, Y: 0, Z: 1}.Normalize(),
+		Right:            Vec3{X: -1, Y: 0, Z: 0},
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 2,
+	}
+	glassesScene.Camera.ApplyRotation(0.0*0.0174533, 180.0*0.0174533)
+	glassesMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Pick2.obj", 1)
+	glassesScene.Meshes = append(glassesScene.Meshes, &GameObject[any]{
+		Position: Vec3{Z: 0},
+		Mesh:     glassesMesh,
+	})
+	glassesScene.Skybox = &SolidColorSkybox{
+		Color: Vec3{},
+	}
 
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
 
 	// scene := sponzaScene
-	// scene := cornellSphereScene
+	scene := cornellSphereScene
 	// scene := refractionsScene
-	scene := chaiScene
+	// scene := chaiScene
+	// scene := glassesScene
 	camera := *scene.Camera
 
 	var sunLight *Sun
@@ -814,12 +820,12 @@ func main() {
 					return
 				}
 				thisSamples := samplesPerPixel
-				if pixel.SampleCount == 0 {
-					thisSamples = 1
-				}
-				if pixel.SampleCount+thisSamples > maxSamplesPerPixel {
-					thisSamples = maxSamplesPerPixel - pixel.SampleCount
-				}
+				// if pixel.SampleCount == 0 {
+				// 	thisSamples = samplesPerPixel
+				// }
+				// if pixel.SampleCount+thisSamples > maxSamplesPerPixel {
+				// 	thisSamples = maxSamplesPerPixel - pixel.SampleCount
+				// }
 
 				for range thisSamples {
 					rx := (float64(pixel.X) + rand.Float64()) / float64(width)
