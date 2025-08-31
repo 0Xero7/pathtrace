@@ -123,6 +123,32 @@ func IntersectSegmentTriangle(origin, direction Vec3, stepSize float64, A, B, C 
 }
 
 func InterpolateNormal(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
+	v0 := b.Sub(a)
+	v1 := c.Sub(a)
+	v2 := p.Sub(a)
+
+	d00 := v0.Dot(v0)
+	d01 := v0.Dot(v1)
+	d11 := v1.Dot(v1)
+	d20 := v2.Dot(v0)
+	d21 := v2.Dot(v1)
+
+	denom := d00*d11 - d01*d01
+
+	v := (d11*d20 - d01*d21) / denom
+	w := (d00*d21 - d01*d20) / denom
+	u := 1.0 - v - w
+
+	nA._Scale(u)
+	nB._Scale(v)
+	nC._Scale(w)
+	nA._Add(nB)
+	nA._Add(nC)
+	
+	return nA
+}
+
+func InterpolateNormal2(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 	const EPSILON = 1e-9
 
 	// Calculate the vectors that form the sides of the triangle from vertex A
@@ -188,15 +214,16 @@ func InterpolateNormal(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 
 func SampleTrianglePoint(A, B, C Vec3) Vec3 {
 	u := rand.Float64()
-	v := rand.Float64()
-
-	if u+v > 1 {
-		u = 1 - u
-		v = 1 - v
-	}
-
+	v := rand.Float64() * (1 - u)
 	w := 1 - u - v
-	return A.Scale(w).Add(B.Scale(u)).Add(C.Scale(v))
+
+	A._Scale(w)
+	B._Scale(v)
+	C._Scale(u)
+	A._Add(B)
+	A._Add(C)
+
+	return A
 }
 
 func TriangleArea(A, B, C Vec3) float64 {
