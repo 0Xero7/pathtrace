@@ -441,7 +441,7 @@ func main() {
 
 	showStats := true
 
-	bounces := 16
+	bounces := 4
 	samplesPerPixel := 64
 	maxSamplesPerPixel := 1024
 	scatterRays := 1
@@ -605,6 +605,7 @@ func main() {
 		FrustrumDistance: 2,
 	}
 	glassesScene.Camera.ApplyRotation(0.0*0.0174533, 180.0*0.0174533)
+	// glassesMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Marble.obj", 1)
 	glassesMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Pick2.obj", 1)
 	glassesScene.Meshes = append(glassesScene.Meshes, &GameObject[any]{
 		Position: Vec3{Z: 0},
@@ -617,10 +618,10 @@ func main() {
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
 
 	// scene := sponzaScene
-	scene := cornellSphereScene
+	// scene := cornellSphereScene
 	// scene := refractionsScene
 	// scene := chaiScene
-	// scene := glassesScene
+	scene := glassesScene
 	camera := *scene.Camera
 
 	var sunLight *Sun
@@ -629,25 +630,6 @@ func main() {
 			sunLight = l
 		}
 	}
-
-	// 	// boxMesh, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Untitled.obj", 1)
-	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B2.obj", 1)
-	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\CornellSphere.obj", 1)
-	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cornell.obj", 1)
-	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Emissions.obj", 1)
-	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\2B.obj", 2)
-	// 	// boxMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\cube.obj", 1.0)
-	// boxObj := GameObject{
-	// 	Position: Vec3{Z: 0},
-	// 	Mesh:     *boxMesh,
-	// }
-
-	// scene := []GameObject{
-	// 	boxObj,
-	// }
-
-	// // sunDirection := Vec3{X: -0.1, Y: 1, Z: 10}.Normalize() // <- cornell sphere
-	// sunDirection := Vec3{X: -0.1, Y: 1, Z: 0.1}.Normalize() // <- sponza
 
 	// Set up the window
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
@@ -841,7 +823,7 @@ func main() {
 					}.Normalize()
 
 					ray := NewRay(camera.Position, rayDirection)
-					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vnmu, ambient, &scene, 0, Vec3{}, false)
+					rayColor := TraceRay(ray, stepSize, linearBVH, maxSteps, bounces, scatterRays, vnmu, ambient, &scene, 0, Vec3{}, false, NewRefractiveIndexTracker(1.0), 1.0)
 
 					// Accumulate color
 					pixel.AddSample(rayColor)

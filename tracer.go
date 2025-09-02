@@ -10,7 +10,16 @@ import (
 var raysTraced atomic.Int64 = atomic.Int64{}
 var recentRaysTraced atomic.Int64 = atomic.Int64{}
 
-func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vnmu *VNMU, ambient float64, scene *Scene, bounceIndex int, lastSuraceNormal Vec3, isSpecular bool) Vec3 {
+func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vnmu *VNMU, ambient float64, scene *Scene, bounceIndex int, lastSuraceNormal Vec3, isSpecular bool, refractiveIndex *RefractiveIndexTracker, energy float64) Vec3 {
+	if energy < 1e-2 || bounces < 0 {
+		return Vec3{}
+	}
+
+	var refractionComponent Vec3
+	var diffuseComponent Vec3
+	var specularComponent Vec3
+	var reflectiveComponent Vec3
+
 	rayPosition := ray.Origin
 	for range maxSteps {
 		intersects, t, tri := bvh.CheckIntersection(ray, stepSize)
@@ -27,61 +36,58 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 			).Normalize()
 
 			material := vnmu.Materials[tri.Index/3]
-			materialType := material.Illum
-
-			refractiveComponent := Vec3{}
 			if strings.HasPrefix(material.Name, "Glass") {
-				component, _ := HandleRefractiveMaterial(
-					ray,
-					stepSize,
-					bvh,
-					maxSteps,
-					bounces,
-					scatterRays,
-					vnmu,
-					ambient,
-					scene,
-					true,
-					tri,
-					intersection_point,
-					rayPosition,
-					normal,
-					bounceIndex,
-					lastSuraceNormal,
-				)
-				refractiveComponent = component
-				// specularComponent := HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
-				// directContribution._Add(specularComponent)
+				ri := float64(material.Refraction)
+				goingOut := false
+				if normal.Dot(ray.Direction) > 0 {
+					normal = normal.Scale(-1)
+					goingOut = true
+					ri = refractiveIndex.GetPreviousIndex()
+				}
+
+				refractedRayDir, tir := GetRefractedRay(ray.Direction, normal, refractiveIndex.GetCurrentIndex(), ri)
+				if tir {
+					refractionComponent = TraceRay(
+						Ray{
+							Origin:    intersection_point.Add(refractedRayDir.Scale(0.001)),
+							Direction: refractedRayDir,
+						},
+						stepSize,
+						bvh,
+						maxSteps,
+						bounces-1,
+						scatterRays,
+						vnmu,
+						ambient,
+						scene,
+						bounceIndex+1,
+						lastSuraceNormal,
+						isSpecular,
+						refractiveIndex,
+						energy*0.95,
+					).Scale(energy)
+				} else {
+					refractedRay := Ray{
+						Origin:    intersection_point.Add(refractedRayDir.Scale(0.001)),
+						Direction: refractedRayDir,
+					}
+					if goingOut {
+						refractiveIndex.PopIndex()
+					} else {
+						refractiveIndex.UpdateIndex(ri)
+					}
+					refractionComponent = TraceRay(refractedRay, stepSize, bvh, maxSteps, bounces-1, scatterRays, vnmu, ambient, scene, bounceIndex, lastSuraceNormal, isSpecular, refractiveIndex, energy*0.95).Scale(energy)
+				}
 			}
 
+			materialType := material.Illum
 			reflectivity := (material.Specular.R + material.Specular.G + material.Specular.B) / 3.0
-			// fmt.Println(materialType, material.Name, reflectivity)
 			switch materialType {
-			// ambientContribution, _ := HandleAmbientMaterial(
-			// 	ray,
-			// 	stepSize,
-			// 	bvh,
-			// 	maxSteps,
-			// 	bounces,
-			// 	scatterRays,
-			// 	vnmu,
-			// 	ambient,
-			// 	scene,
-			// 	false,
-			// 	tri,
-			// 	intersection_point,
-			// 	rayPosition,
-			// 	normal,
-			// 	bounceIndex,
-			// 	lastSuraceNormal,
-			// )
-			// return ambientContribution
-
 			default:
 				switch {
 				case reflectivity < 0.1:
 					// Handle low reflectivity
-					diffuseComponent, isIndirectEmissive := HandleDiffuseMaterial(
+					dc, isIndirectEmissive := HandleDiffuseMaterial(
 						ray,
 						stepSize,
 						bvh,
@@ -98,6 +104,8 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 						normal,
 						bounceIndex,
 						lastSuraceNormal,
+						refractiveIndex,
+						energy,
 					)
 
 					if isIndirectEmissive && !isSpecular {
@@ -114,20 +122,17 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 						// 4. Calculate MIS weight
 						weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
-						diffuseComponent._Scale(weight)
-
-						// fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
+						dc._Scale(weight)
 					}
 
-					return refractiveComponent.Add(diffuseComponent)
+					diffuseComponent = dc
 				case reflectivity < 0.9:
 					// Handle medium reflectivity
 					isReflectiveRay := rand.Float64() < float64(reflectivity)
 					if isReflectiveRay {
-						return refractiveComponent.Add(HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex))
+						reflectiveComponent = HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex, refractiveIndex, energy).Add(refractionComponent)
 					} else {
-
-						diffuseComponent, isIndirectEmissive := HandleDiffuseMaterial(
+						dc, isIndirectEmissive := HandleDiffuseMaterial(
 							ray,
 							stepSize,
 							bvh,
@@ -144,6 +149,8 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 							normal,
 							bounceIndex,
 							lastSuraceNormal,
+							refractiveIndex,
+							energy,
 						)
 
 						if isIndirectEmissive && !isSpecular {
@@ -160,22 +167,28 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 							// 4. Calculate MIS weight
 							weight := MISWeight(pdf_brdf, pdf_NEE_solidAngle)
-							diffuseComponent._Scale(weight)
-
-							// fmt.Printf("MIS: pdf_brdf=%.3f; pdf_nee=%.3f; weight=%.3f\n", pdf_brdf, pdf_NEE_solidAngle, weight)
+							dc._Scale(weight)
 						}
 
-						return refractiveComponent.Add(diffuseComponent)
+						diffuseComponent = dc
 					}
 				default:
 					// os.Exit(1)
 					// return Vec3{}
 					// Handle high reflectivity\
-					return HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex)
+					reflectiveComponent = HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex, refractiveIndex, energy).Add(refractionComponent)
 				}
 				// case 4:
 				// 	return refractiveComponent
 			}
+
+			// Combine all components
+			diffuseScale := 1.0
+			if refractionComponent.Length() > 0 {
+				diffuseScale = 0.1
+			}
+			final := diffuseComponent.Scale(diffuseScale).Add(specularComponent).Add(reflectiveComponent).Add(refractionComponent)
+			return final
 		}
 
 		rayPosition = rayPosition.Add(ray.Direction.Scale(stepSize))
@@ -187,88 +200,89 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 	return scene.Skybox.Sample(ray.Direction)
 }
 
-func HandleRefractiveMaterial(
-	ray Ray,
-	stepSize float64,
-	bvh *LinearBVH,
-	maxSteps, bounces, scatterRays int,
-	vnmu *VNMU,
-	ambient float64,
-	scene *Scene,
-	indirectRay bool,
-	tri *BVHTriangle,
-	intersection_point, rayPosition, normal Vec3,
-	bounceIndex int,
-	lastSurfaceNormal Vec3,
-) (Vec3, bool) {
-	material := vnmu.Materials[tri.Index/3]
-	n2 := float64(material.Refraction)
+// func HandleRefractiveMaterial(
+// 	ray Ray,
+// 	stepSize float64,
+// 	bvh *LinearBVH,
+// 	maxSteps, bounces, scatterRays int,
+// 	vnmu *VNMU,
+// 	ambient float64,
+// 	scene *Scene,
+// 	indirectRay bool,
+// 	tri *BVHTriangle,
+// 	intersection_point, rayPosition, normal Vec3,
+// 	bounceIndex int,
+// 	lastSurfaceNormal Vec3,
+// 	refractiveIndex, energy float64,
+// ) (Vec3, bool) {
+// 	material := vnmu.Materials[tri.Index/3]
+// 	n2 := float64(material.Refraction)
 
-	refractedRayDir, tir := GetRefractedRay(ray.Direction, normal, 1.0, n2)
-	if tir { // Total Internal Reflection
-		return TraceRay(Ray{
-			Origin:    intersection_point.Add(refractedRayDir.Scale(0.001)),
-			Direction: refractedRayDir,
-		}, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, lastSurfaceNormal, true), false
-	}
+// 	refractedRayDir, tir := GetRefractedRay(ray.Direction, normal, 1.0, n2)
+// 	if tir { // Total Internal Reflection
+// 		return TraceRay(Ray{
+// 			Origin:    intersection_point.Add(refractedRayDir.Scale(0.001)),
+// 			Direction: refractedRayDir,
+// 		}, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, lastSurfaceNormal, true), false
+// 	}
 
-	var outgoingRay Ray
-	var o_outgoingNormal Vec3
-	var wentOut bool = false
+// 	var outgoingRay Ray
+// 	var o_outgoingNormal Vec3
+// 	var wentOut bool = false
 
-	energy := 0.95
-	// We are now inside the object
-	for energy > 1e-4 {
-		refractionPoint := intersection_point.Add(refractedRayDir.Scale(0.001))
-		refractedRay := Ray{
-			Origin:    refractionPoint,
-			Direction: refractedRayDir,
-		}
-		intersects, t, intri := bvh.CheckIntersection(refractedRay, stepSize)
-		if !intersects {
-			return TraceRay(refractedRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, lastSurfaceNormal, true), false
-		}
+// 	energy := 0.95
+// 	// We are now inside the object
+// 	for energy > 1e-4 {
+// 		refractionPoint := intersection_point.Add(refractedRayDir.Scale(0.001))
+// 		refractedRay := Ray{
+// 			Origin:    refractionPoint,
+// 			Direction: refractedRayDir,
+// 		}
+// 		intersects, t, intri := bvh.CheckIntersection(refractedRay, stepSize)
+// 		if !intersects {
+// 			return TraceRay(refractedRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, lastSurfaceNormal, true, refractiveIndex, energy), false
+// 		}
 
-		// Find the next point inside the object where the ray hits
-		outgoingIntersectionPoint := refractionPoint.Add(refractedRayDir.Scale(t))
-		outgoingNormal := InterpolateNormal(
-			outgoingIntersectionPoint,
-			intri.A,
-			intri.B,
-			intri.C,
-			vnmu.Normals[intri.Index],
-			vnmu.Normals[intri.Index+1],
-			vnmu.Normals[intri.Index+2],
-		).Normalize()
+// 		// Find the next point inside the object where the ray hits
+// 		outgoingIntersectionPoint := refractionPoint.Add(refractedRayDir.Scale(t))
+// 		outgoingNormal := InterpolateNormal(
+// 			outgoingIntersectionPoint,
+// 			intri.A,
+// 			intri.B,
+// 			intri.C,
+// 			vnmu.Normals[intri.Index],
+// 			vnmu.Normals[intri.Index+1],
+// 			vnmu.Normals[intri.Index+2],
+// 		).Normalize()
 
-		outgoingRayDir, tir := GetRefractedRay(refractedRayDir, outgoingNormal.Scale(-1), n2, 1.0)
-		if !tir {
-			wentOut = true
-			outgoingRay = Ray{
-				Origin:    outgoingIntersectionPoint,
-				Direction: outgoingRayDir,
-			}
-			o_outgoingNormal = outgoingNormal
-			break
-		}
+// 		outgoingRayDir, tir := GetRefractedRay(refractedRayDir, outgoingNormal.Scale(-1), n2, 1.0)
+// 		if !tir {
+// 			wentOut = true
+// 			outgoingRay = Ray{
+// 				Origin:    outgoingIntersectionPoint,
+// 				Direction: outgoingRayDir,
+// 			}
+// 			o_outgoingNormal = outgoingNormal
+// 			break
+// 		}
 
-		// Total internal reflection!
-		outgoingRay = Ray{
-			Origin:    outgoingIntersectionPoint,
-			Direction: outgoingRayDir,
-		}
-		refractedRayDir = outgoingRayDir
-		intersection_point = outgoingIntersectionPoint
-		o_outgoingNormal = outgoingNormal
-		energy = energy * 0.9 // Lose some energy on each internal reflection
-	}
+// 		// Total internal reflection!
+// 		outgoingRay = Ray{
+// 			Origin:    outgoingIntersectionPoint,
+// 			Direction: outgoingRayDir,
+// 		}
+// 		refractedRayDir = outgoingRayDir
+// 		intersection_point = outgoingIntersectionPoint
+// 		o_outgoingNormal = outgoingNormal
+// 		energy = energy * 0.9 // Lose some energy on each internal reflection
+// 	}
 
-	if !wentOut {
-		return Vec3{}, false
-	}
+// 	if !wentOut {
+// 		return Vec3{}, false
+// 	}
 
-	return TraceRay(outgoingRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, o_outgoingNormal, true).Scale(energy), false
-}
+// 	return TraceRay(outgoingRay, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, bounceIndex, o_outgoingNormal, true).Scale(energy), false
+// }
 
 func HandleAmbientMaterial(
 	ray Ray,
@@ -376,6 +390,8 @@ func HandleDiffuseMaterial(
 	intersection_point, rayPosition, normal Vec3,
 	bounceIndex int,
 	lastSurfaceNormal Vec3,
+	ri *RefractiveIndexTracker,
+	ni float64,
 ) (Vec3, bool) {
 	material := vnmu.Materials[tri.Index/3]
 	emissiveColor := material.Emissive
@@ -558,7 +574,7 @@ func HandleDiffuseMaterial(
 			dir = GetCosineWeighedHemisphereSampling2(normal, tangent1, tangent2)
 
 			ray := NewRay(intersection_point.Add(normal.Scale(0.001)), dir)
-			contribution := TraceRay(ray, stepSize, bvh, maxSteps, bounces-1, scatterRays, vnmu, ambient, scene, bounceIndex+1, normal, false)
+			contribution := TraceRay(ray, stepSize, bvh, maxSteps, bounces-1, scatterRays, vnmu, ambient, scene, bounceIndex+1, normal, false, ri, ni)
 			// lambert := dir.Dot(normal)
 
 			// Apply albedo to incoming light, not as multiplication
@@ -600,6 +616,8 @@ func HandleReflectiveMaterial(
 	tri *BVHTriangle,
 	intersection_point, rayPosition, normal Vec3,
 	bounceIndex int,
+	ri *RefractiveIndexTracker,
+	ni float64,
 ) Vec3 {
 	material := vnmu.Materials[tri.Index/3]
 
@@ -629,6 +647,7 @@ func HandleReflectiveMaterial(
 			ambient, scene, bounceIndex+1,
 			normal,
 			true,
+			ri, ni,
 		)
 		reflectionContribution._Add(contribution)
 	}
