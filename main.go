@@ -442,12 +442,12 @@ func main() {
 	showStats := true
 
 	bounces := 4
-	samplesPerPixel := 64
+	samplesPerPixel := 1
 	maxSamplesPerPixel := 1024
 	scatterRays := 1
 	ambient := 0.0
-	maxSteps := 1
-	stepSize := 1000.0
+	maxSteps := 5000
+	stepSize := 1.0
 
 	splitsX := 4
 	splitsY := 4
@@ -546,6 +546,10 @@ func main() {
 	cornellSphereScene.Skybox = &SolidColorSkybox{
 		Color: Vec3{}.Scale(0.2),
 	}
+	cornellSphereScene.BlackHoles = append(cornellSphereScene.BlackHoles, &BlackHole{
+		Position: Vec3{X: 0.1, Y: 0.5, Z: 0},
+		Rs:       0.05,
+	})
 
 	// // ---------------------------- Refractions ---------------------------------
 	// refractionsScene := Scene{}
@@ -615,13 +619,43 @@ func main() {
 		Color: Vec3{},
 	}
 
+	// ----------------------------------------------- Empty Scene ---------------------------------------------
+	emptyScene := Scene{}
+	emptyScene.Camera = &Camera{
+		Position:         Vec3{X: 0, Y: 200, Z: 1500},
+		Forward:          Vec3{X: 0, Y: 0, Z: 1}.Normalize(),
+		Right:            Vec3{X: -1, Y: 0, Z: 0},
+		Up:               Vec3{X: 0, Y: -1, Z: 0},
+		FrustrumDistance: 2,
+	}
+	accretionMesh, _, _ := LoadObj("C:\\Users\\smpsm\\OneDrive\\Documents\\Accretion.obj", 170.0)
+	emptyScene.Meshes = append(emptyScene.Meshes, &GameObject[any]{
+		Position: Vec3{Z: 0},
+		Mesh:     accretionMesh,
+	})
+	emptyScene.Camera.ApplyRotation(0.0*0.0174533, 190.0*0.0174533)
+	emptyScene.Skybox = &SolidColorSkybox{
+		Color: Vec3{}.Ones().Scale(0.003),
+	}
+	// emptyScene.Skybox = &GradientSkybox{
+	// 	GroundColor:  Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255),
+	// 	HorizonColor: Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255),
+	// 	ZenithColor:  Vec3{X: 50, Y: 120, Z: 255}.Scale(1.0 / 255),
+	// 	Intensity:    1,
+	// }
+	emptyScene.BlackHoles = append(emptyScene.BlackHoles, &BlackHole{
+		Position: Vec3{X: 0, Y: 0, Z: 0},
+		Rs:       100,
+	})
+
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------
 
 	// scene := sponzaScene
 	// scene := cornellSphereScene
+	scene := emptyScene
 	// scene := refractionsScene
 	// scene := chaiScene
-	scene := glassesScene
+	// scene := glassesScene
 	camera := *scene.Camera
 
 	var sunLight *Sun

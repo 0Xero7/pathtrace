@@ -20,6 +20,12 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 	var specularComponent Vec3
 	var reflectiveComponent Vec3
 
+	var rayState *RayState = nil
+
+	if len(scene.BlackHoles) > 0 {
+		rayState = GetInitialState(ray.Origin, ray.Direction, scene.BlackHoles[0])
+	}
+
 	rayPosition := ray.Origin
 	for range maxSteps {
 		intersects, t, tri := bvh.CheckIntersection(ray, stepSize)
@@ -191,7 +197,38 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 			return final
 		}
 
-		rayPosition = rayPosition.Add(ray.Direction.Scale(stepSize))
+		if rayState == nil {
+			rayPosition = rayPosition.Add(ray.Direction.Scale(stepSize))
+			ray.Origin = rayPosition
+		} else {
+			// 1. Advance the ray one step in the Cartesian physics simulation.
+			rayState = Step(rayState, stepSize, scene.BlackHoles[0])
+
+			// 2. The state is already in relative Cartesian coordinates.
+			//    Just create a Vec3 from the state's components.
+			relativePos := Vec3{X: rayState.P_x, Y: rayState.P_y, Z: rayState.P_z}
+
+			// 3. Translate to get the new world position.
+			newRayPosition := relativePos.Add(scene.BlackHoles[0].Position)
+
+			// 4. The velocity is also already Cartesian.
+			newRayDirection := Vec3{X: rayState.V_x, Y: rayState.V_y, Z: rayState.V_z}.Normalize()
+
+			// 5. Update the main ray object.
+			ray.Origin = newRayPosition
+			ray.Direction = newRayDirection
+			rayPosition = newRayPosition
+
+			// 6. Perform the termination check using Cartesian coordinates.
+			//    It's more efficient to compare squared distances to avoid a sqrt().
+			r_squared := relativePos.Dot(relativePos) // P_x² + P_y² + P_z²
+			rs_squared := scene.BlackHoles[0].Rs * scene.BlackHoles[0].Rs
+
+			if r_squared <= rs_squared {
+				return Vec3{0, 0, 0} // Return black and STOP.
+			}
+		}
+		// 1. Did the ray fall into the black hole?
 	}
 
 	if scene.Skybox == nil {
