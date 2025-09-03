@@ -21,9 +21,11 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 	var reflectiveComponent Vec3
 
 	var rayState *RayState = nil
+	var V_t_initial = 1.0
 
 	if len(scene.BlackHoles) > 0 {
 		rayState = GetInitialState(ray.Origin, ray.Direction, scene.BlackHoles[0])
+		V_t_initial = rayState.V_t
 	}
 
 	rayPosition := ray.Origin
@@ -83,6 +85,28 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 						refractiveIndex.UpdateIndex(ri)
 					}
 					refractionComponent = TraceRay(refractedRay, stepSize, bvh, maxSteps, bounces-1, scatterRays, vnmu, ambient, scene, bounceIndex, lastSuraceNormal, isSpecular, refractiveIndex, energy*0.95).Scale(energy)
+				}
+			}
+
+			var dopplerFactor = 1.0
+			var gravitationalFactor = 1.0
+			if material.Name == "AccretionDisk" {
+				relativePosition := intersection_point.Sub(scene.BlackHoles[0].Position)
+				spinAxis := Vec3{Y: 1}
+				tangentialDirection := spinAxis.Cross(relativePosition).Normalize()
+				diskVelocity := tangentialDirection.Scale(0.9999) // 0.95c
+
+				lightDir := ray.Direction.Scale(-1)
+
+				v_parallel := lightDir.Dot(diskVelocity)
+
+				dopplerFactor = math.Sqrt((1 + v_parallel) / (1 - v_parallel))
+
+				// Gravitational factor
+				gravitationalFactor = V_t_initial / rayState.V_t
+
+				if scene.BlackHoles[0].AccretionDisk != nil {
+					diffuseComponent = scene.BlackHoles[0].AccretionDisk.GetProceduralColor(intersection_point, scene.BlackHoles[0].Position)
 				}
 			}
 
@@ -194,7 +218,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 				diffuseScale = 0.1
 			}
 			final := diffuseComponent.Scale(diffuseScale).Add(specularComponent).Add(reflectiveComponent).Add(refractionComponent)
-			return final
+			return final.Scale(dopplerFactor * gravitationalFactor)
 		}
 
 		if rayState == nil {

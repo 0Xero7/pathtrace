@@ -131,3 +131,7 @@ func FromColor(col math32.Color) Vec3 {
 		Z: float64(col.B),
 	}
 }
+
+func (v1 Vec3) Lerp(v2 Vec3, t float64) Vec3 {
+	return v1.Add(v2.Sub(v1).Scale(t))
+}

@@ -428,6 +428,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"github.com/aquilax/go-perlin"
 )
 
 var threadCount = 16 // Number of goroutines to use for rendering
@@ -436,13 +437,13 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 512
-	height := 512
+	width := 768
+	height := 768
 
 	showStats := true
 
-	bounces := 4
-	samplesPerPixel := 1
+	bounces := 2
+	samplesPerPixel := 64
 	maxSamplesPerPixel := 1024
 	scatterRays := 1
 	ambient := 0.0
@@ -622,7 +623,7 @@ func main() {
 	// ----------------------------------------------- Empty Scene ---------------------------------------------
 	emptyScene := Scene{}
 	emptyScene.Camera = &Camera{
-		Position:         Vec3{X: 0, Y: 200, Z: 1500},
+		Position:         Vec3{X: 0, Y: 100, Z: 1500},
 		Forward:          Vec3{X: 0, Y: 0, Z: 1}.Normalize(),
 		Right:            Vec3{X: -1, Y: 0, Z: 0},
 		Up:               Vec3{X: 0, Y: -1, Z: 0},
@@ -633,7 +634,7 @@ func main() {
 		Position: Vec3{Z: 0},
 		Mesh:     accretionMesh,
 	})
-	emptyScene.Camera.ApplyRotation(0.0*0.0174533, 190.0*0.0174533)
+	emptyScene.Camera.ApplyRotation(0.0*0.0174533, 185.0*0.0174533)
 	emptyScene.Skybox = &SolidColorSkybox{
 		Color: Vec3{}.Ones().Scale(0.003),
 	}
@@ -646,6 +647,11 @@ func main() {
 	emptyScene.BlackHoles = append(emptyScene.BlackHoles, &BlackHole{
 		Position: Vec3{X: 0, Y: 0, Z: 0},
 		Rs:       100,
+		AccretionDisk: &AccretionDisk{
+			InnerRadius: 300,
+			OuterRadius: 500,
+			NoiseGen:    perlin.NewPerlin(2, 2, 4, 0),
+		},
 	})
 
 	// ----------------------------------------------- SCENE SELECTOR ---------------------------------------------

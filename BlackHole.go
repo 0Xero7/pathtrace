@@ -254,15 +254,20 @@
 
 package main
 
-import "math"
+import (
+	"math"
+
+	"github.com/aquilax/go-perlin"
+)
 
 // NOTE: Vec3 struct and its methods (Sub, Length, Dot, Scale, Add, Normalize)
 // are assumed to be defined elsewhere.
 
 // BlackHole struct remains the same.
 type BlackHole struct {
-	Position Vec3
-	Rs       float64
+	Position      Vec3
+	Rs            float64
+	AccretionDisk *AccretionDisk
 }
 
 // RayState is now fully Cartesian, eliminating the need for spherical coordinates.
@@ -412,4 +417,83 @@ func Step(state *RayState, stepSize float64, blackHole *BlackHole) *RayState {
 	newState.V_z = state.V_z + (stepSize/6.0)*(k1.Accel_z+2*k2.Accel_z+2*k3.Accel_z+k4.Accel_z)
 
 	return newState
+}
+
+// AccretionDisk represents the parameters for our procedural disk.
+type AccretionDisk struct {
+	InnerRadius float64        // The radius where the disk starts.
+	OuterRadius float64        // The radius where the disk ends.
+	NoiseGen    *perlin.Perlin // Assuming a Perlin noise generator.
+}
+
+// GetProceduralColor calculates the base emissive color of the accretion disk
+// at a specific point in world space.
+func (disk *AccretionDisk) GetProceduralColor(worldPosition Vec3, blackHolePosition Vec3) Vec3 {
+	// 1. Get the point's position relative to the black hole.
+	relativePos := worldPosition.Sub(blackHolePosition)
+
+	// 2. Convert to 2D polar coordinates (radius and angle) for texturing.
+	// We'll use the XZ plane for a Y-up renderer.
+	radius := math.Sqrt(relativePos.X*relativePos.X + relativePos.Z*relativePos.Z)
+	angle := math.Atan2(relativePos.Z, relativePos.X)
+
+	// --- Layer 1: Temperature Gradient ---
+
+	// Normalize the radius to a [0, 1] range based on the disk's bounds.
+	// This `t` value is our gradient parameter.
+	t := (radius - disk.InnerRadius) / (disk.OuterRadius - disk.InnerRadius)
+
+	// Clamp t to prevent colors outside the gradient.
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+
+	// Define our color gradient: hot white -> yellow -> orange -> deep red.
+	hotColor := Vec3{X: 1.0, Y: 1.0, Z: 0.85} // Bright, slightly yellow white
+	midColor := Vec3{X: 1.0, Y: 0.6, Z: 0.0}  // Orange
+	coolColor := Vec3{X: 0.8, Y: 0.1, Z: 0.0} // Deep red
+
+	var tempColor Vec3
+	if t < 0.5 {
+		// Lerp between hot and mid colors for the inner half.
+		tempColor = hotColor.Lerp(midColor, t*2.0)
+	} else {
+		// Lerp between mid and cool colors for the outer half.
+		tempColor = midColor.Lerp(coolColor, (t-0.5)*2.0)
+	}
+
+	// The intensity should also fall off dramatically with distance.
+	// We can use an inverse square falloff for a more physical feel.
+	intensity := 1.0 / (t*t + 0.1) // The +0.1 prevents division by zero and keeps the center bright.
+	tempColor = tempColor.Scale(intensity)
+
+	// --- Layer 2: Turbulent Noise ---
+
+	// We sample the 2D noise function using polar coordinates.
+	// Manipulating these coordinates is how we create the swirling effect.
+	noiseScale := 5.0    // Controls the "zoom" level of the noise. Higher is more detailed.
+	stretchFactor := 5.0 // Stretches the noise along the angle to create a fibrous look.
+
+	// Convert polar to distorted Cartesian coordinates for noise sampling.
+	noiseX := (radius / disk.OuterRadius) * noiseScale
+	noiseY := (angle / (2 * math.Pi)) * noiseScale * stretchFactor
+
+	// Get a noise value, map it from [-1, 1] to [0, 1].
+	noiseValue := (disk.NoiseGen.Noise2D(noiseX, noiseY) + 1.0) / 2.0
+
+	// We can raise the noise to a power to increase contrast and create sharper "filaments".
+	noiseValue = math.Pow(noiseValue, 3.0)
+
+	// Add a minimum brightness to the noise to ensure the disk is always visible.
+	// noiseValue = noiseValue*0.95 + 0.05
+
+	// --- Final Combination ---
+
+	// Multiply the temperature color by the noise intensity.
+	finalColor := tempColor.Scale(noiseValue)
+
+	return finalColor
 }
