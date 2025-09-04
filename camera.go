@@ -1,6 +1,9 @@
 package main
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type Camera struct {
 	Position         Vec3
@@ -8,6 +11,32 @@ type Camera struct {
 	Right            Vec3
 	Up               Vec3
 	FrustrumDistance float64
+}
+
+func (c *Camera) SphericalAround(center Vec3, radius, phi, theta float64) {
+	fmt.Println("SphericalAround called with", center, radius, phi, theta)
+	c.Position = Vec3{
+		X: center.X + radius*math.Sin(theta)*math.Cos(phi),
+		Y: center.Y + radius*math.Cos(theta),
+		Z: center.Z + radius*math.Sin(theta)*math.Sin(phi),
+	}
+
+	c.Forward = center.Sub(c.Position).Normalize()
+
+	// Define world up vector (assuming Y-up coordinate system)
+	worldUp := Vec3{X: 0, Y: 1, Z: 0}
+
+	// Calculate right vector: worldUp × forward
+	c.Right = worldUp.Cross(c.Forward).Normalize()
+
+	// Handle the case where forward is parallel to world up (looking straight up/down)
+	if c.Right.Length() < 1e-6 {
+		// Use an arbitrary perpendicular vector
+		c.Right = Vec3{X: 1, Y: 0, Z: 0}
+	}
+
+	// Calculate up vector: right × forward
+	c.Up = c.Right.Cross(c.Forward).Normalize()
 }
 
 // Rotate vector around Y axis (global rotation)

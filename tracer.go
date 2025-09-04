@@ -21,7 +21,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 	var reflectiveComponent Vec3
 
 	var rayState *RayState = nil
-	var V_t_initial = 1.0
+	var V_t_initial = float32(1.0)
 
 	if len(scene.BlackHoles) > 0 {
 		rayState = GetInitialState(ray.Origin, ray.Direction, scene.BlackHoles[0])
@@ -88,8 +88,8 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 				}
 			}
 
-			var dopplerFactor = 1.0
-			var gravitationalFactor = 1.0
+			var dopplerFactor = float32(1.0)
+			var gravitationalFactor = float32(1.0)
 			if material.Name == "AccretionDisk" {
 				relativePosition := intersection_point.Sub(scene.BlackHoles[0].Position)
 				spinAxis := Vec3{Y: 1}
@@ -100,10 +100,10 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 				v_parallel := lightDir.Dot(diskVelocity)
 
-				dopplerFactor = math.Sqrt((1 + v_parallel) / (1 - v_parallel))
+				dopplerFactor = float32(math.Sqrt((1 + v_parallel) / (1 - v_parallel)))
 
 				// Gravitational factor
-				gravitationalFactor = V_t_initial / rayState.V_t
+				gravitationalFactor = (V_t_initial / rayState.V_t)
 
 				if scene.BlackHoles[0].AccretionDisk != nil {
 					diffuseComponent = scene.BlackHoles[0].AccretionDisk.GetProceduralColor(intersection_point, scene.BlackHoles[0].Position)
@@ -218,7 +218,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 				diffuseScale = 0.1
 			}
 			final := diffuseComponent.Scale(diffuseScale).Add(specularComponent).Add(reflectiveComponent).Add(refractionComponent)
-			return final.Scale(dopplerFactor * gravitationalFactor)
+			return final.Scale(float64(dopplerFactor * gravitationalFactor))
 		}
 
 		if rayState == nil {
@@ -226,17 +226,17 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 			ray.Origin = rayPosition
 		} else {
 			// 1. Advance the ray one step in the Cartesian physics simulation.
-			rayState = Step(rayState, stepSize, scene.BlackHoles[0])
+			rayState = Step(rayState, float32(stepSize), scene.BlackHoles[0])
 
 			// 2. The state is already in relative Cartesian coordinates.
 			//    Just create a Vec3 from the state's components.
-			relativePos := Vec3{X: rayState.P_x, Y: rayState.P_y, Z: rayState.P_z}
+			relativePos := Vec3{X: float64(rayState.P_x), Y: float64(rayState.P_y), Z: float64(rayState.P_z)}
 
 			// 3. Translate to get the new world position.
 			newRayPosition := relativePos.Add(scene.BlackHoles[0].Position)
 
 			// 4. The velocity is also already Cartesian.
-			newRayDirection := Vec3{X: rayState.V_x, Y: rayState.V_y, Z: rayState.V_z}.Normalize()
+			newRayDirection := Vec3{X: float64(rayState.V_x), Y: float64(rayState.V_y), Z: float64(rayState.V_z)}.Normalize()
 
 			// 5. Update the main ray object.
 			ray.Origin = newRayPosition

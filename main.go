@@ -437,17 +437,17 @@ func main() {
 	a := app.New()
 	w := a.NewWindow("Path Tracer")
 
-	width := 768
-	height := 768
+	width := 512
+	height := 512
 
 	showStats := true
 
 	bounces := 2
-	samplesPerPixel := 64
-	maxSamplesPerPixel := 1024
+	samplesPerPixel := 32
+	maxSamplesPerPixel := 32
 	scatterRays := 1
 	ambient := 0.0
-	maxSteps := 5000
+	maxSteps := 3000
 	stepSize := 1.0
 
 	splitsX := 4
@@ -621,6 +621,8 @@ func main() {
 	}
 
 	// ----------------------------------------------- Empty Scene ---------------------------------------------
+	var theta = 90.0 * 0.0174533
+	var phi = 83.0 * 0.0174533
 	emptyScene := Scene{}
 	emptyScene.Camera = &Camera{
 		Position:         Vec3{X: 0, Y: 100, Z: 1500},
@@ -634,10 +636,12 @@ func main() {
 		Position: Vec3{Z: 0},
 		Mesh:     accretionMesh,
 	})
-	emptyScene.Camera.ApplyRotation(0.0*0.0174533, 185.0*0.0174533)
-	emptyScene.Skybox = &SolidColorSkybox{
-		Color: Vec3{}.Ones().Scale(0.003),
-	}
+	// emptyScene.Camera.ApplyRotation(0.0*0.0174533, 185.0*0.0174533)
+	emptyScene.Camera.SphericalAround(Vec3{}, 1500, theta, phi)
+	emptyScene.Skybox = NewImageSkybox("C:\\Users\\smpsm\\Downloads\\HDR_subdued_blue_nebulae.png", 0.1)
+	// emptyScene.Skybox = &SolidColorSkybox{
+	// 	Color: Vec3{}.Ones().Scale(0.003),
+	// }
 	// emptyScene.Skybox = &GradientSkybox{
 	// 	GroundColor:  Vec3{X: 76, Y: 76, Z: 76}.Scale(1.0 / 255),
 	// 	HorizonColor: Vec3{X: 200, Y: 230, Z: 255}.Scale(1.0 / 255),
@@ -649,7 +653,7 @@ func main() {
 		Rs:       100,
 		AccretionDisk: &AccretionDisk{
 			InnerRadius: 300,
-			OuterRadius: 500,
+			OuterRadius: 450,
 			NoiseGen:    perlin.NewPerlin(2, 2, 4, 0),
 		},
 	})
@@ -662,7 +666,7 @@ func main() {
 	// scene := refractionsScene
 	// scene := chaiScene
 	// scene := glassesScene
-	camera := *scene.Camera
+	camera := scene.Camera
 
 	var sunLight *Sun
 	for _, light := range scene.Lights {
@@ -722,14 +726,14 @@ func main() {
 		// 	rotX += 0.01
 		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
 		// 	dirty = true
-		// case fyne.KeyJ:
-		// 	rotY -= 0.01
-		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
-		// 	dirty = true
-		// case fyne.KeyL:
-		// 	rotY += 0.01
-		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
-		// 	dirty = true
+		case fyne.KeyJ:
+			theta -= 10 * 0.0174533
+			camera.SphericalAround(Vec3{}, 1500, float64(theta), float64(phi))
+			dirty = true
+		case fyne.KeyL:
+			theta += 10 * 0.0174533
+			camera.SphericalAround(Vec3{}, 1500, float64(theta), float64(phi))
+			dirty = true
 
 		case fyne.KeyPageUp:
 			bounces++
@@ -793,13 +797,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer cpuFile.Close()
-	pprof.StartCPUProfile(cpuFile)
+	// defer cpuFile.Close()
 
 	bvhSt := time.Now()
 	bvhx := BuildBVH(vertices, tris, -1000, 1000, -1000, 1000, -1000, 1000, 4, 42)
 	bvhSSt := time.Since(bvhSt).Milliseconds()
-	pprof.StopCPUProfile()
+	// pprof.StopCPUProfile()
 
 	fmt.Println("BVH Built in", bvhSSt, "ms")
 	fmt.Println(bvhx.GetStats(1))
@@ -811,10 +814,11 @@ func main() {
 
 	// randomSampling := true
 
-	// go func() {
-	// 	time.Sleep(30 * time.Second)
-	// 	pprof.StopCPUProfile()
-	// }()
+	pprof.StartCPUProfile(cpuFile)
+	go func() {
+		time.Sleep(30 * time.Second)
+		pprof.StopCPUProfile()
+	}()
 
 	// Channel to signal render workers to stop
 	stopRendering := make(chan bool)
@@ -824,7 +828,11 @@ func main() {
 	totalRaysTraced := 0
 
 	// Calculate function now runs continuously
-	calculate := func(tileIndex int) {
+	calculate := func(doneCh chan bool, tileIndex int) {
+		defer func() {
+			doneCh <- true
+		}()
+
 		for {
 			select {
 			case <-stopRendering:
@@ -890,9 +898,46 @@ func main() {
 	}
 
 	// Start render workers that run continuously
-	for i := 0; i < threadCount; i++ {
-		go calculate(i)
-	}
+	doneCh := make(chan bool, threadCount)
+
+	go func() {
+		count := threadCount - 1
+		j := 0
+		for {
+			<-doneCh
+			count++
+
+			if count != threadCount {
+				continue
+			}
+
+			j++
+			f, err := os.Create(fmt.Sprintf("orbit/frame%d.png", j))
+			if err != nil {
+				panic(err)
+			}
+			if err = png.Encode(f, img); err != nil {
+				log.Printf("failed to encode: %v", err)
+				os.Exit(1)
+			}
+			f.Close()
+
+			theta += 1 * 0.0174533
+			count = 0
+			scene.Camera.SphericalAround(Vec3{}, 1500, theta, phi)
+			dirty = true
+			fmt.Println(">>", theta)
+
+			time.Sleep(time.Second)
+			fmt.Println("Starting render loop")
+
+			for i := 0; i < threadCount; i++ {
+				go calculate(doneCh, i)
+			}
+		}
+	}()
+	// Start initial render
+	doneCh <- true
 
 	// Display update loop - runs at fixed 30 FPS
 	lastStatsUpdate := time.Now()
@@ -906,6 +951,7 @@ func main() {
 		for range displayTicker.C {
 			dirtyMutex.Lock()
 			if dirty {
+				fmt.Println("!Dirty Checked!")
 				fmt.Println("Camera:")
 				fmt.Println("  Pos: ", camera.Position)
 				fmt.Println("  Fwd: ", camera.Forward)
@@ -917,7 +963,7 @@ func main() {
 
 				// Pause rendering while we clear
 				renderingActive.Store(false)
-				time.Sleep(10 * time.Millisecond) // Give workers time to pause
+				time.Sleep(100 * time.Millisecond) // Give workers time to pause
 
 				// Clear stats
 				maxRaysSpeed = 0.0

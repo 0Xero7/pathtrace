@@ -144,7 +144,7 @@ func InterpolateNormal(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 	nC._Scale(w)
 	nA._Add(nB)
 	nA._Add(nC)
-	
+
 	return nA
 }
 
