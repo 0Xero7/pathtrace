@@ -5,12 +5,14 @@ import (
 	"math/rand"
 	"strings"
 	"sync/atomic"
+
+	"github.com/chewxy/math32"
 )
 
 var raysTraced atomic.Int64 = atomic.Int64{}
 var recentRaysTraced atomic.Int64 = atomic.Int64{}
 
-func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vnmu *VNMU, ambient float64, scene *Scene, bounceIndex int, lastSuraceNormal Vec3, isSpecular bool, refractiveIndex *RefractiveIndexTracker, energy float64) Vec3 {
+func TraceRay(ray Ray, stepSize float32, bvh *LinearBVH, maxSteps, bounces, scatterRays int, vnmu *VNMU, ambient float32, scene *Scene, bounceIndex int, lastSuraceNormal Vec3, isSpecular bool, refractiveIndex *RefractiveIndexTracker, energy float32) Vec3 {
 	if energy < 1e-2 || bounces < 0 {
 		return Vec3{}
 	}
@@ -45,7 +47,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 			material := vnmu.Materials[tri.Index/3]
 			if strings.HasPrefix(material.Name, "Glass") {
-				ri := float64(material.Refraction)
+				ri := float32(material.Refraction)
 				goingOut := false
 				if normal.Dot(ray.Direction) > 0 {
 					normal = normal.Scale(-1)
@@ -100,7 +102,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 				v_parallel := lightDir.Dot(diskVelocity)
 
-				dopplerFactor = float32(math.Sqrt((1 + v_parallel) / (1 - v_parallel)))
+				dopplerFactor = math32.Sqrt((1 + v_parallel) / (1 - v_parallel))
 
 				// Gravitational factor
 				gravitationalFactor = (V_t_initial / rayState.V_t)
@@ -143,7 +145,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 						pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
 
 						triangle_area := TriangleArea(tri.A, tri.B, tri.C)
-						pdf_NEE_area := 1.0 / (float64(len(vnmu.EmissiveTriangles)) * triangle_area)
+						pdf_NEE_area := 1.0 / (float32(len(vnmu.EmissiveTriangles)) * triangle_area)
 
 						lightNormal := normal
 						cosLight := max(0, ray.Direction.Dot(lightNormal))
@@ -158,7 +160,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 					diffuseComponent = dc
 				case reflectivity < 0.9:
 					// Handle medium reflectivity
-					isReflectiveRay := rand.Float64() < float64(reflectivity)
+					isReflectiveRay := rand.Float32() < reflectivity
 					if isReflectiveRay {
 						reflectiveComponent = HandleReflectiveMaterial(ray.Origin, ray.Direction, stepSize, bvh, maxSteps, bounces, scatterRays, vnmu, ambient, scene, true, tri, intersection_point, rayPosition, normal, bounceIndex, refractiveIndex, energy).Add(refractionComponent)
 					} else {
@@ -188,7 +190,7 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 							pdf_brdf := ray.Direction.Dot(lastSuraceNormal) / math.Pi
 
 							triangle_area := TriangleArea(tri.A, tri.B, tri.C)
-							pdf_NEE_area := 1.0 / (float64(len(vnmu.EmissiveTriangles)) * triangle_area)
+							pdf_NEE_area := 1.0 / (float32(len(vnmu.EmissiveTriangles)) * triangle_area)
 
 							lightNormal := normal
 							cosLight := max(0, ray.Direction.Dot(lightNormal))
@@ -213,12 +215,12 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 			}
 
 			// Combine all components
-			diffuseScale := 1.0
+			diffuseScale := float32(1.0)
 			if refractionComponent.Length() > 0 {
 				diffuseScale = 0.1
 			}
 			final := diffuseComponent.Scale(diffuseScale).Add(specularComponent).Add(reflectiveComponent).Add(refractionComponent)
-			return final.Scale(float64(dopplerFactor * gravitationalFactor))
+			return final.Scale(float32(dopplerFactor * gravitationalFactor))
 		}
 
 		if rayState == nil {
@@ -230,13 +232,13 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 			// 2. The state is already in relative Cartesian coordinates.
 			//    Just create a Vec3 from the state's components.
-			relativePos := Vec3{X: float64(rayState.P_x), Y: float64(rayState.P_y), Z: float64(rayState.P_z)}
+			relativePos := Vec3{X: float32(rayState.P_x), Y: float32(rayState.P_y), Z: float32(rayState.P_z)}
 
 			// 3. Translate to get the new world position.
 			newRayPosition := relativePos.Add(scene.BlackHoles[0].Position)
 
 			// 4. The velocity is also already Cartesian.
-			newRayDirection := Vec3{X: float64(rayState.V_x), Y: float64(rayState.V_y), Z: float64(rayState.V_z)}.Normalize()
+			newRayDirection := Vec3{X: float32(rayState.V_x), Y: float32(rayState.V_y), Z: float32(rayState.V_z)}.Normalize()
 
 			// 5. Update the main ray object.
 			ray.Origin = newRayPosition
@@ -263,21 +265,21 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 // func HandleRefractiveMaterial(
 // 	ray Ray,
-// 	stepSize float64,
+// 	stepSize float32,
 // 	bvh *LinearBVH,
 // 	maxSteps, bounces, scatterRays int,
 // 	vnmu *VNMU,
-// 	ambient float64,
+// 	ambient float32,
 // 	scene *Scene,
 // 	indirectRay bool,
 // 	tri *BVHTriangle,
 // 	intersection_point, rayPosition, normal Vec3,
 // 	bounceIndex int,
 // 	lastSurfaceNormal Vec3,
-// 	refractiveIndex, energy float64,
+// 	refractiveIndex, energy float32,
 // ) (Vec3, bool) {
 // 	material := vnmu.Materials[tri.Index/3]
-// 	n2 := float64(material.Refraction)
+// 	n2 := float32(material.Refraction)
 
 // 	refractedRayDir, tir := GetRefractedRay(ray.Direction, normal, 1.0, n2)
 // 	if tir { // Total Internal Reflection
@@ -347,11 +349,11 @@ func TraceRay(ray Ray, stepSize float64, bvh *LinearBVH, maxSteps, bounces, scat
 
 func HandleAmbientMaterial(
 	ray Ray,
-	stepSize float64,
+	stepSize float32,
 	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
 	vnmu *VNMU,
-	ambient float64,
+	ambient float32,
 	scene *Scene,
 	indirectRay bool,
 	tri *BVHTriangle,
@@ -365,7 +367,7 @@ func HandleAmbientMaterial(
 	diffuseColor := material.Diffuse
 
 	// Calculate UV coordinates
-	var x, y float64
+	var x, y float32
 	if material.HasImage {
 		triangleIndex := tri.Index / 3
 		baseUVIndex := triangleIndex * 6
@@ -399,9 +401,9 @@ func HandleAmbientMaterial(
 		sampledColor := SampleDiffuseMap(material.DiffuseImage, x, y)
 
 		// Convert from sRGB to linear space for lighting calculations
-		diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 2.2))
-		diffuseColor.G = float32(math.Pow(float64(sampledColor.G)/255.0, 2.2))
-		diffuseColor.B = float32(math.Pow(float64(sampledColor.B)/255.0, 2.2))
+		diffuseColor.R = math32.Pow(float32(sampledColor.R)/255.0, 2.2)
+		diffuseColor.G = math32.Pow(float32(sampledColor.G)/255.0, 2.2)
+		diffuseColor.B = math32.Pow(float32(sampledColor.B)/255.0, 2.2)
 	}
 
 	// Sample bump map if available
@@ -412,9 +414,9 @@ func HandleAmbientMaterial(
 
 	// Create albedo vector
 	albedo := Vec3{
-		X: float64(diffuseColor.R),
-		Y: float64(diffuseColor.G),
-		Z: float64(diffuseColor.B),
+		X: float32(diffuseColor.R),
+		Y: float32(diffuseColor.G),
+		Z: float32(diffuseColor.B),
 	}
 
 	// Calculate direct lighting
@@ -440,11 +442,11 @@ func HandleAmbientMaterial(
 
 func HandleDiffuseMaterial(
 	ray Ray,
-	stepSize float64,
+	stepSize float32,
 	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
 	vnmu *VNMU,
-	ambient float64,
+	ambient float32,
 	scene *Scene,
 	indirectRay bool,
 	tri *BVHTriangle,
@@ -452,7 +454,7 @@ func HandleDiffuseMaterial(
 	bounceIndex int,
 	lastSurfaceNormal Vec3,
 	ri *RefractiveIndexTracker,
-	ni float64,
+	ni float32,
 ) (Vec3, bool) {
 	material := vnmu.Materials[tri.Index/3]
 	emissiveColor := material.Emissive
@@ -466,7 +468,7 @@ func HandleDiffuseMaterial(
 	diffuseColor := material.Diffuse
 
 	// Calculate UV coordinates
-	var x, y float64
+	var x, y float32
 	if material.HasImage {
 		triangleIndex := tri.Index / 3
 		baseUVIndex := triangleIndex * 6
@@ -500,9 +502,9 @@ func HandleDiffuseMaterial(
 		sampledColor := SampleDiffuseMap(material.DiffuseImage, x, y)
 
 		// Convert from sRGB to linear space for lighting calculations
-		diffuseColor.R = float32(math.Pow(float64(sampledColor.R)/255.0, 2.2))
-		diffuseColor.G = float32(math.Pow(float64(sampledColor.G)/255.0, 2.2))
-		diffuseColor.B = float32(math.Pow(float64(sampledColor.B)/255.0, 2.2))
+		diffuseColor.R = math32.Pow(float32(sampledColor.R)/255.0, 2.2)
+		diffuseColor.G = math32.Pow(float32(sampledColor.G)/255.0, 2.2)
+		diffuseColor.B = math32.Pow(float32(sampledColor.B)/255.0, 2.2)
 	}
 
 	// Sample bump map if available
@@ -513,9 +515,9 @@ func HandleDiffuseMaterial(
 
 	// Create albedo vector
 	albedo := Vec3{
-		X: float64(diffuseColor.R),
-		Y: float64(diffuseColor.G),
-		Z: float64(diffuseColor.B),
+		X: float32(diffuseColor.R),
+		Y: float32(diffuseColor.G),
+		Z: float32(diffuseColor.B),
 	}
 
 	// Ambient contribution
@@ -596,7 +598,7 @@ func HandleDiffuseMaterial(
 
 			geometryTerm := ndotl * sndorl / (distance * distance)
 			pdf := TriangleArea(vnmu.Vertices[i0], vnmu.Vertices[i1], vnmu.Vertices[i2])
-			pdf = 1.0 / (pdf * float64(len(vnmu.EmissiveTriangles)))
+			pdf = 1.0 / (pdf * float32(len(vnmu.EmissiveTriangles)))
 
 			pdf_brdf := normal.Dot(toLight) / math.Pi
 			pdf_solidAngle := pdf * (distance * distance) / sndorl
@@ -620,7 +622,7 @@ func HandleDiffuseMaterial(
 	if bounces > 0 {
 		var dir Vec3
 		var up Vec3
-		if math.Abs(normal.Y) < 0.999 {
+		if math32.Abs(normal.Y) < 0.999 {
 			up = Vec3{X: 0, Y: 1, Z: 0}
 		} else {
 			up = Vec3{X: 1, Y: 0, Z: 0}
@@ -642,14 +644,14 @@ func HandleDiffuseMaterial(
 			contribution._ComponentMul(albedo)
 			indirectContribution._Add(contribution)
 		}
-		indirectContribution = indirectContribution.Scale(1.0 / float64(scatterRays))
+		indirectContribution = indirectContribution.Scale(1.0 / float32(scatterRays))
 	}
 
 	// // Emissive contribution (only add once)
 	// emissiveContribution := Vec3{
-	// 	X: float64(emissiveColor.R),
-	// 	Y: float64(emissiveColor.G),
-	// 	Z: float64(emissiveColor.B),
+	// 	X: float32(emissiveColor.R),
+	// 	Y: float32(emissiveColor.G),
+	// 	Z: float32(emissiveColor.B),
 	// }
 
 	// Combine all lighting
@@ -667,18 +669,18 @@ func HandleDiffuseMaterial(
 
 func HandleReflectiveMaterial(
 	rayOrigin, rayDirection Vec3,
-	stepSize float64,
+	stepSize float32,
 	bvh *LinearBVH,
 	maxSteps, bounces, scatterRays int,
 	vnmu *VNMU,
-	ambient float64,
+	ambient float32,
 	scene *Scene,
 	indirectRay bool,
 	tri *BVHTriangle,
 	intersection_point, rayPosition, normal Vec3,
 	bounceIndex int,
 	ri *RefractiveIndexTracker,
-	ni float64,
+	ni float32,
 ) Vec3 {
 	material := vnmu.Materials[tri.Index/3]
 
@@ -687,9 +689,9 @@ func HandleReflectiveMaterial(
 
 	// Get specular color and intensity
 	specularColor := Vec3{
-		X: float64(material.Specular.R),
-		Y: float64(material.Specular.G),
-		Z: float64(material.Specular.B),
+		X: float32(material.Specular.R),
+		Y: float32(material.Specular.G),
+		Z: float32(material.Specular.B),
 	}
 
 	// Calculate perfect reflection direction
@@ -699,7 +701,7 @@ func HandleReflectiveMaterial(
 	var reflectionContribution Vec3
 
 	for range scatterRays {
-		sampledDir := SampleGlossyReflection(reflectionDirection, normal, float64(roughness))
+		sampledDir := SampleGlossyReflection(reflectionDirection, normal, float32(roughness))
 		ray := NewRay(intersection_point.Add(normal.Scale(0.001)), sampledDir)
 		contribution := TraceRay(
 			ray,
@@ -712,17 +714,17 @@ func HandleReflectiveMaterial(
 		)
 		reflectionContribution._Add(contribution)
 	}
-	reflectionContribution._Scale(1.0 / float64(scatterRays))
+	reflectionContribution._Scale(1.0 / float32(scatterRays))
 
 	// Mix based on Fresnel and specular color
 	reflectionContribution._ComponentMul(specularColor)
 	return reflectionContribution
 }
 
-func SampleGlossyReflection(reflectionDir, normal Vec3, roughness float64) Vec3 {
+func SampleGlossyReflection(reflectionDir, normal Vec3, roughness float32) Vec3 {
 	// Build coordinate system around reflection direction
 	var up Vec3
-	if math.Abs(reflectionDir.Y) < 0.9 {
+	if math32.Abs(reflectionDir.Y) < 0.9 {
 		up = Vec3{X: 0, Y: 1, Z: 0}
 	} else {
 		up = Vec3{X: 1, Y: 0, Z: 0}
@@ -732,14 +734,14 @@ func SampleGlossyReflection(reflectionDir, normal Vec3, roughness float64) Vec3 
 	tangent2 := reflectionDir.Cross(tangent1).Normalize()
 
 	// Sample within cone - tighter cone for smoother materials
-	theta := rand.Float64() * 2 * math.Pi
+	theta := rand.Float32() * 2 * math.Pi
 	alpha := roughness * roughness
-	u := rand.Float64()
-	phi := math.Atan(alpha * math.Sqrt(u) / math.Sqrt(1.0-u))
+	u := rand.Float32()
+	phi := math32.Atan(alpha * math32.Sqrt(u) / math32.Sqrt(1.0-u))
 
-	x := math.Cos(theta) * math.Sin(phi)
-	y := math.Sin(theta) * math.Sin(phi)
-	z := math.Cos(phi)
+	x := math32.Cos(theta) * math32.Sin(phi)
+	y := math32.Sin(theta) * math32.Sin(phi)
+	z := math32.Cos(phi)
 
 	return tangent1.Scale(x).Add(tangent2.Scale(y)).Add(reflectionDir.Scale(z)).Normalize()
 }

@@ -1,11 +1,15 @@
 package main
 
-import "math"
+import (
+	"math"
 
-const INF = math.MaxFloat64
+	"github.com/chewxy/math32"
+)
+
+const INF = math.MaxFloat32
 
 type LinearBVHNode struct {
-	// Bounds               [6]float64
+	// Bounds               [6]float32
 	MinBounds, MaxBounds Vec3
 
 	IsLeaf bool
@@ -16,7 +20,7 @@ type LinearBVHNode struct {
 	SecondChildOffset uint32
 }
 
-func (l *LinearBVHNode) intersectAABB(ray Ray, stepSize float64) float64 {
+func (l *LinearBVHNode) intersectAABB(ray Ray, stepSize float32) float32 {
 	inverseDirection := ray.Direction.Inverse()
 	leftBounds := l.MinBounds.Sub(ray.Origin).ComponentMul(inverseDirection)
 	rightBounds := l.MaxBounds.Sub(ray.Origin).ComponentMul(inverseDirection)
@@ -41,7 +45,7 @@ func (l *LinearBVHNode) intersectAABB(ray Ray, stepSize float64) float64 {
 	tMax = min(tMax, t2)
 
 	// if tMin > tMax {
-	// 	return maxFloat64
+	// 	return maxfloat32
 	// }
 
 	// inverseDirectionZ := 1.0 / ray.Direction.Z
@@ -109,7 +113,7 @@ func ConstructLinearBVH(root *Box) *LinearBVH {
 
 // ----------------------------------------------------------------------
 
-func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float64) (bool, float64, *BVHTriangle) {
+func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float32) (bool, float32, *BVHTriangle) {
 	stack := make([]uint32, 64)
 	stack[0] = 0
 	nptr := 1
@@ -166,13 +170,13 @@ func (box *LinearBVH) CheckIntersection(ray Ray, stepSize float64) (bool, float6
 }
 
 // Möller-Trumbore without barycentric coords
-func FastIntersectShadowTriangle(origin, dir Vec3, tmax float64, v0, v1, v2 Vec3) bool {
+func FastIntersectShadowTriangle(origin, dir Vec3, tmax float32, v0, v1, v2 Vec3) bool {
 	edge1 := v1.Sub(v0)
 	edge2 := v2.Sub(v0)
 	h := dir.Cross(edge2)
 	a := edge1.X*h.X + edge1.Y*h.Y + edge1.Z*h.Z
 
-	if math.Abs(a) < 0.00001 {
+	if math32.Abs(a) < 0.00001 {
 		return false
 	}
 
@@ -195,7 +199,7 @@ func FastIntersectShadowTriangle(origin, dir Vec3, tmax float64, v0, v1, v2 Vec3
 	return t > 0.00001 && t < tmax
 }
 
-func (box *LinearBVH) QuickCheckIntersection(ray Ray, stepSize float64) bool {
+func (box *LinearBVH) QuickCheckIntersection(ray Ray, stepSize float32) bool {
 	var stack [64]uint32
 	stack[0] = 0
 	nptr := 1

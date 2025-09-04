@@ -3,19 +3,20 @@ package main
 import (
 	"fmt"
 	"image"
-	"math"
 	"os"
+
+	"github.com/chewxy/math32"
 )
 
-func tile(val float64) float64 {
-	_, vf := math.Modf(val)
+func tile(val float32) float32 {
+	_, vf := math32.Modf(val)
 	if vf < 0 {
 		vf = 1 + vf
 	}
 	return vf
 }
 
-func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
+func LoadObj(path string, scaleFactor float32) (*Mesh, *Decoder, error) {
 	object, err := Decode(path, "")
 
 	for _, m := range object.Warnings {
@@ -63,19 +64,19 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 	tris := make([]int, 0)
 	normals := make([]Vec3, 0)
 	mats := make([]*Material, 0)
-	uvs := make([]float64, 0)
+	uvs := make([]float32, 0)
 
 	object_normals := make([]Vec3, 0)
 	for i := 0; i < len(object.Normals); i += 3 {
 		object_normals = append(object_normals, Vec3{
-			X: float64(object.Normals[i]),
-			Y: float64(object.Normals[i+1]),
-			Z: float64(object.Normals[i+2]),
+			X: float32(object.Normals[i]),
+			Y: float32(object.Normals[i+1]),
+			Z: float32(object.Normals[i+2]),
 		}.Normalize())
 	}
 
 	for i := 0; i < len(object.Vertices); i += 3 {
-		vertices = append(vertices, Vec3{X: float64(object.Vertices[i]) * float64(scaleFactor), Y: float64(object.Vertices[i+1]) * float64(scaleFactor), Z: float64(object.Vertices[i+2]) * float64(scaleFactor)})
+		vertices = append(vertices, Vec3{X: float32(object.Vertices[i]) * float32(scaleFactor), Y: float32(object.Vertices[i+1]) * float32(scaleFactor), Z: float32(object.Vertices[i+2]) * float32(scaleFactor)})
 	}
 
 	for _, face := range object.Objects[0].Faces {
@@ -83,12 +84,12 @@ func LoadObj(path string, scaleFactor float64) (*Mesh, *Decoder, error) {
 		mats = append(mats, object.Materials[face.Material])
 
 		if len(object.Uvs) > 0 {
-			us := make([]float64, 3)
-			vs := make([]float64, 3)
+			us := make([]float32, 3)
+			vs := make([]float32, 3)
 			for i := range 3 {
 				uvIndex := face.Uvs[i]
-				u := (float64(object.Uvs[uvIndex*2]))         // X coordinate
-				v := 1.0 - (float64(object.Uvs[uvIndex*2+1])) // Y coordinate
+				u := (float32(object.Uvs[uvIndex*2]))         // X coordinate
+				v := 1.0 - (float32(object.Uvs[uvIndex*2+1])) // Y coordinate
 				us[i] = u
 				vs[i] = v
 				uvs = append(uvs, us[i], vs[i])

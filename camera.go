@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"math"
+
+	"github.com/chewxy/math32"
 )
 
 type Camera struct {
@@ -10,15 +11,15 @@ type Camera struct {
 	Forward          Vec3
 	Right            Vec3
 	Up               Vec3
-	FrustrumDistance float64
+	FrustrumDistance float32
 }
 
-func (c *Camera) SphericalAround(center Vec3, radius, phi, theta float64) {
+func (c *Camera) SphericalAround(center Vec3, radius, phi, theta float32) {
 	fmt.Println("SphericalAround called with", center, radius, phi, theta)
 	c.Position = Vec3{
-		X: center.X + radius*math.Sin(theta)*math.Cos(phi),
-		Y: center.Y + radius*math.Cos(theta),
-		Z: center.Z + radius*math.Sin(theta)*math.Sin(phi),
+		X: center.X + radius*math32.Sin(theta)*math32.Cos(phi),
+		Y: center.Y + radius*math32.Cos(theta),
+		Z: center.Z + radius*math32.Sin(theta)*math32.Sin(phi),
 	}
 
 	c.Forward = center.Sub(c.Position).Normalize()
@@ -40,9 +41,9 @@ func (c *Camera) SphericalAround(center Vec3, radius, phi, theta float64) {
 }
 
 // Rotate vector around Y axis (global rotation)
-func rotateAroundY(v Vec3, angle float64) Vec3 {
-	cos := math.Cos(angle)
-	sin := math.Sin(angle)
+func rotateAroundY(v Vec3, angle float32) Vec3 {
+	cos := math32.Cos(angle)
+	sin := math32.Sin(angle)
 
 	return Vec3{
 		X: v.X*cos + v.Z*sin,
@@ -52,10 +53,10 @@ func rotateAroundY(v Vec3, angle float64) Vec3 {
 }
 
 // Rotate vector around an arbitrary axis
-func rotateAroundAxis(v Vec3, axis Vec3, angle float64) Vec3 {
+func rotateAroundAxis(v Vec3, axis Vec3, angle float32) Vec3 {
 	// Rodrigues' rotation formula
-	cos := math.Cos(angle)
-	sin := math.Sin(angle)
+	cos := math32.Cos(angle)
+	sin := math32.Sin(angle)
 
 	// Ensure axis is normalized
 	axis = axis.Normalize()
@@ -74,7 +75,7 @@ func rotateAroundAxis(v Vec3, axis Vec3, angle float64) Vec3 {
 }
 
 // Apply camera rotations
-func (c *Camera) ApplyRotation(rotY, rotX float64) {
+func (c *Camera) ApplyRotation(rotY, rotX float32) {
 	// Step 1: Rotate around global Y axis (yaw)
 	if rotY != 0 {
 		c.Forward = rotateAroundY(c.Forward, rotY)
@@ -100,7 +101,7 @@ func (c *Camera) ApplyRotation(rotY, rotX float64) {
 }
 
 // Alternative: Set absolute rotation from angles
-func (c *Camera) SetRotationFromAngles(yaw, pitch float64) {
+func (c *Camera) SetRotationFromAngles(yaw, pitch float32) {
 	// Reset to initial orientation then apply rotations
 	c.Forward = Vec3{X: 0, Y: 0, Z: 1}
 	c.Right = Vec3{X: 1, Y: 0, Z: 0}

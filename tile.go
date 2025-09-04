@@ -3,6 +3,8 @@ package main
 import (
 	"math"
 	"math/rand"
+
+	"github.com/chewxy/math32"
 )
 
 type Tile struct {
@@ -31,14 +33,14 @@ func (t *Tile) GetLeastSampledPixel(maxSamples int) *Pixel {
 
 func (t *Tile) GetNoisiestPixel(maxSamples int) *Pixel {
 	var pixel *Pixel
-	maxPriority := -1.0
+	maxPriority := float32(-1.0)
 
 	for _, p := range t.Pixels {
 		if p.SampleCount >= maxSamples {
 			continue
 		}
 
-		var priority float64
+		var priority float32
 
 		if p.SampleCount < 4 {
 			priority = 1e9 // Keep this logic to handle initial sampling
@@ -51,7 +53,7 @@ func (t *Tile) GetNoisiestPixel(maxSamples int) *Pixel {
 			}
 
 			// PRIORITY CALCULATION: Swap Variance for Contrast.
-			priority = p.Contrast / math.Sqrt(float64(p.SampleCount))
+			priority = p.Contrast / math32.Sqrt(float32(p.SampleCount))
 		}
 
 		// Selection logic remains the same...
@@ -65,10 +67,10 @@ func (t *Tile) GetNoisiestPixel(maxSamples int) *Pixel {
 
 func (t *Tile) GetNoisiestPixel2(maxSamples int) *Pixel {
 	var pixel *Pixel
-	maxPriority := -1.0
+	maxPriority := float32(-1.0)
 
 	for _, p := range t.Pixels {
-		var priority float64 = 0
+		var priority float32 = 0
 		if p.SampleCount >= maxSamples {
 			continue
 		}
@@ -83,10 +85,10 @@ func (t *Tile) GetNoisiestPixel2(maxSamples int) *Pixel {
 			priority = 1e9 // High priority for undersampled pixels
 		} else {
 			// Weight by inverse sample count (prefer undersampled pixels)
-			priority = p.Variance / math.Sqrt(float64(p.SampleCount))
+			priority = p.Variance / math32.Sqrt(float32(p.SampleCount))
 		}
 
-		if priority > maxPriority || (priority == maxPriority && p.SampleCount < pixel.SampleCount) || (priority == maxPriority && p.SampleCount == pixel.SampleCount && rand.Float64() < 0.5) {
+		if priority > maxPriority || (priority == maxPriority && p.SampleCount < pixel.SampleCount) || (priority == maxPriority && p.SampleCount == pixel.SampleCount && rand.Float32() < 0.5) {
 			pixel = p
 			maxPriority = priority
 		}

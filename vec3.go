@@ -2,13 +2,12 @@ package main
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/g3n/engine/math32"
 )
 
 type Vec3 struct {
-	X, Y, Z float64
+	X, Y, Z float32
 }
 
 func (v Vec3) Ones() Vec3 {
@@ -40,22 +39,22 @@ func (v *Vec3) _Sub(other Vec3) {
 	v.Z -= other.Z
 }
 
-func (v Vec3) Scale(scalar float64) Vec3 {
+func (v Vec3) Scale(scalar float32) Vec3 {
 	v._Scale(scalar)
 	return v
 }
-func (v *Vec3) _Scale(scalar float64) {
+func (v *Vec3) _Scale(scalar float32) {
 	v.X *= scalar
 	v.Y *= scalar
 	v.Z *= scalar
 }
 
-func (v *Vec3) Dot(other Vec3) float64 {
+func (v *Vec3) Dot(other Vec3) float32 {
 	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
 }
 
-func (v Vec3) Length() float64 {
-	return math.Sqrt(v.Dot(v))
+func (v Vec3) Length() float32 {
+	return math32.Sqrt(v.Dot(v))
 }
 
 func (v Vec3) Normalize() Vec3 {
@@ -94,9 +93,9 @@ func (v *Vec3) _Cross(other Vec3) {
 }
 
 func (v Vec3) ToRGBA() color.RGBA {
-	r := Clamp01(math.Sqrt(max(0.0, v.X))) * 255
-	g := Clamp01(math.Sqrt(max(0.0, v.Y))) * 255
-	b := Clamp01(math.Sqrt(max(0.0, v.Z))) * 255
+	r := Clamp01(math32.Sqrt(max(0.0, v.X))) * 255
+	g := Clamp01(math32.Sqrt(max(0.0, v.Y))) * 255
+	b := Clamp01(math32.Sqrt(max(0.0, v.Z))) * 255
 
 	return color.RGBA{
 		R: uint8(r),
@@ -126,12 +125,12 @@ func (v *Vec3) Inverse() Vec3 {
 
 func FromColor(col math32.Color) Vec3 {
 	return Vec3{
-		X: float64(col.R),
-		Y: float64(col.G),
-		Z: float64(col.B),
+		X: float32(col.R),
+		Y: float32(col.G),
+		Z: float32(col.B),
 	}
 }
 
-func (v1 Vec3) Lerp(v2 Vec3, t float64) Vec3 {
+func (v1 Vec3) Lerp(v2 Vec3, t float32) Vec3 {
 	return v1.Add(v2.Sub(v1).Scale(t))
 }

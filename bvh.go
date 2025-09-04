@@ -11,9 +11,9 @@ type BVHTriangle struct {
 	X, Y, Z  int
 	Index    int
 
-	MinX, MaxX float64
-	MinY, MaxY float64
-	MinZ, MaxZ float64
+	MinX, MaxX float32
+	MinY, MaxY float32
+	MinZ, MaxZ float32
 }
 
 type Ray struct {
@@ -36,9 +36,9 @@ func NewRay(origin, direction Vec3) Ray {
 }
 
 type FauxBox struct {
-	X1, X2 float64
-	Y1, Y2 float64
-	Z1, Z2 float64
+	X1, X2 float32
+	Y1, Y2 float32
+	Z1, Z2 float32
 
 	TriangleCount int
 }
@@ -61,7 +61,7 @@ func (b *FauxBox) Grow(tri *BVHTriangle) {
 	}
 	b.TriangleCount += 1
 }
-func (b *FauxBox) Area() float64 {
+func (b *FauxBox) Area() float32 {
 	dx := b.X2 - b.X1
 	dy := b.Y2 - b.Y1
 	dz := b.Z2 - b.Z1
@@ -70,9 +70,9 @@ func (b *FauxBox) Area() float64 {
 }
 
 type Box struct {
-	X1, X2 float64
-	Y1, Y2 float64
-	Z1, Z2 float64
+	X1, X2 float32
+	Y1, Y2 float32
+	Z1, Z2 float32
 
 	IsLeaf   bool
 	Trianges []*BVHTriangle
@@ -98,7 +98,7 @@ func (b *Box) Grow(tri *BVHTriangle) {
 	b.Trianges = append(b.Trianges, tri)
 }
 
-func (b *Box) Area() float64 {
+func (b *Box) Area() float32 {
 	dx := b.X2 - b.X1
 	dy := b.Y2 - b.Y1
 	dz := b.Z2 - b.Z1
@@ -111,7 +111,7 @@ type BVHStats struct {
 }
 
 func (b BVHStats) String() string {
-	return fmt.Sprintf("MaxDepth: %d\nMinTris: %d\nAverage Tris: %.2f\nMaxTris: %d\nTotalLeafs: %d\nTotalNodes: %d\nTotalTriangles: %d\n", b.MaxDepth, b.MinTris, float64(b.TotalTriangles)/float64(b.TotalLeafs), b.MaxTris, b.TotalLeafs, b.TotalNodes, b.TotalTriangles)
+	return fmt.Sprintf("MaxDepth: %d\nMinTris: %d\nAverage Tris: %.2f\nMaxTris: %d\nTotalLeafs: %d\nTotalNodes: %d\nTotalTriangles: %d\n", b.MaxDepth, b.MinTris, float32(b.TotalTriangles)/float32(b.TotalLeafs), b.MaxTris, b.TotalLeafs, b.TotalNodes, b.TotalTriangles)
 }
 
 func (box Box) GetStats(depth int) BVHStats {
@@ -145,7 +145,7 @@ func (box Box) GetStats(depth int) BVHStats {
 	return temp
 }
 
-func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int, depth int, parentCost float64) *Box {
+func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float32, threshold int, depth int, parentCost float32) *Box {
 	box := new(Box)
 	box.X1, box.X2, box.Y1, box.Y2, box.Z1, box.Z2 = x1, x2, y1, y2, z1, z2
 	box.Trianges = make([]*BVHTriangle, 0, len(tris))
@@ -157,19 +157,19 @@ func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int
 		return box
 	}
 
-	starts := [3]float64{x1, y1, z1}
-	ends := [3]float64{x2, y2, z2}
+	starts := [3]float32{x1, y1, z1}
+	ends := [3]float32{x2, y2, z2}
 
-	bestCost := math.MaxFloat64
+	bestCost := float32(math.MaxFloat32)
 	bestAxis := -1
-	bestSplitPoint := -1.0
+	bestSplitPoint := float32(-1.0)
 
 	for axis := range 3 {
 		l, r := starts[axis], ends[axis]
 		n := 128
 
 		for i := 0; i <= n; i += 1 {
-			mid := l + (r-l)*float64(i)/float64(n)
+			mid := l + (r-l)*float32(i)/float32(n)
 
 			leftBox := FauxBox{}
 			rightBox := FauxBox{}
@@ -181,7 +181,7 @@ func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int
 				// 	continue
 				// }
 
-				var centroid float64
+				var centroid float32
 				switch axis {
 				case 0:
 					centroid = tri.Centroid.X
@@ -198,7 +198,7 @@ func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int
 				}
 			}
 
-			cost := 1.0/8 + float64(leftBox.TriangleCount)*leftBox.Area() + float64(rightBox.TriangleCount)*rightBox.Area()
+			cost := 1.0/8 + float32(leftBox.TriangleCount)*leftBox.Area() + float32(rightBox.TriangleCount)*rightBox.Area()
 			if cost < bestCost {
 				bestCost = cost
 				bestAxis = axis
@@ -228,12 +228,12 @@ func buildBVH(tris []*BVHTriangle, x1, x2, y1, y2, z1, z2 float64, threshold int
 	return box
 }
 
-func getSplit(tris []*BVHTriangle, axis int, mid float64) (*Box, *Box) {
+func getSplit(tris []*BVHTriangle, axis int, mid float32) (*Box, *Box) {
 	left := Box{}
 	right := Box{}
 
 	for _, tri := range tris {
-		centroids := [3]float64{tri.Centroid.X, tri.Centroid.Y, tri.Centroid.Z}
+		centroids := [3]float32{tri.Centroid.X, tri.Centroid.Y, tri.Centroid.Z}
 
 		if centroids[axis] < mid {
 			left.Grow(tri)
@@ -245,7 +245,7 @@ func getSplit(tris []*BVHTriangle, axis int, mid float64) (*Box, *Box) {
 	return &left, &right
 }
 
-func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float64, threshold int, depth int) *Box {
+func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float32, threshold int, depth int) *Box {
 	triangles := make([]*BVHTriangle, 0)
 	for i := 0; i < len(tris); i += 3 {
 		a := verts[tris[i]]
@@ -271,10 +271,10 @@ func BuildBVH(verts []Vec3, tris []int, x1, x2, y1, y2, z1, z2 float64, threshol
 		})
 	}
 
-	return buildBVH(triangles, x1, x2, y1, y2, z1, z2, threshold, depth, math.MaxFloat64)
+	return buildBVH(triangles, x1, x2, y1, y2, z1, z2, threshold, depth, math.MaxFloat32)
 }
 
-func (box *Box) intersectAABB(ray *Ray, stepSize float64) float64 {
+func (box *Box) intersectAABB(ray *Ray, stepSize float32) float32 {
 	inverseDirectionX := 1.0 / ray.Direction.X
 	t1 := (box.X1 - ray.Origin.X) * inverseDirectionX
 	t2 := (box.X2 - ray.Origin.X) * inverseDirectionX
@@ -292,7 +292,7 @@ func (box *Box) intersectAABB(ray *Ray, stepSize float64) float64 {
 	tMax = min(tMax, max(t1, t2))
 
 	if tMin > tMax {
-		return math.MaxFloat64
+		return math.MaxFloat32
 	}
 
 	inverseDirectionZ := 1.0 / ray.Direction.Z
@@ -303,26 +303,26 @@ func (box *Box) intersectAABB(ray *Ray, stepSize float64) float64 {
 	tMax = min(tMax, max(t1, t2))
 
 	if tMin > tMax || tMax < 0 {
-		return math.MaxFloat64
+		return math.MaxFloat32
 	}
 
 	// Clamp to stepSize
 	if tMin > stepSize {
-		return math.MaxFloat64
+		return math.MaxFloat32
 	}
 
 	return max(0, tMin)
 }
 
-func (box *Box) CheckIntersection(ray *Ray, stepSize float64, vertices []Vec3, knownIntersects bool) (bool, float64, *BVHTriangle) {
+func (box *Box) CheckIntersection(ray *Ray, stepSize float32, vertices []Vec3, knownIntersects bool) (bool, float32, *BVHTriangle) {
 	if !knownIntersects {
-		if box.intersectAABB(ray, stepSize) == math.MaxFloat64 {
+		if box.intersectAABB(ray, stepSize) == math.MaxFloat32 {
 			return false, 0, nil
 		}
 	}
 
 	if box.IsLeaf {
-		closest := math.MaxFloat64
+		closest := float32(math.MaxFloat32)
 		var closestTriangle *BVHTriangle
 		found := false
 
@@ -349,7 +349,7 @@ func (box *Box) CheckIntersection(ray *Ray, stepSize float64, vertices []Vec3, k
 
 	// Two children
 	i, j := 0, 1
-	closest := math.MaxFloat64
+	closest := float32(math.MaxFloat32)
 	distI := box.Children[0].intersectAABB(ray, stepSize)
 	distJ := box.Children[1].intersectAABB(ray, stepSize)
 	if distI > distJ {
@@ -361,7 +361,7 @@ func (box *Box) CheckIntersection(ray *Ray, stepSize float64, vertices []Vec3, k
 	if intersects && t > 0 {
 		closest = t
 	}
-	if distJ > closest || distJ == math.MaxFloat64 {
+	if distJ > closest || distJ == math.MaxFloat32 {
 		return intersects, t, tri
 	}
 

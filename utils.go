@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+
+	"github.com/chewxy/math32"
 )
 
 func Humanize[T int | int32 | int64 | float64 | float32](val T) string {
@@ -23,7 +25,7 @@ func Between(val, l, r float64) bool {
 	return l <= val && r >= val
 }
 
-func IntersectSegmentTriangle1(origin, direction Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
+func IntersectSegmentTriangle1(origin, direction Vec3, stepSize float32, A, B, C Vec3) (bool, float32) {
 	const epsilon = 1e-6
 
 	edge1 := B.Sub(A)
@@ -39,14 +41,14 @@ func IntersectSegmentTriangle1(origin, direction Vec3, stepSize float64, A, B, C
 	s := origin.Sub(A)
 	u := inv_det * s.Dot(ray_cross_e2)
 
-	if (u < 0 && math.Abs(u) > epsilon) || (u > 1 && math.Abs(u-1) > epsilon) {
+	if (u < 0 && math32.Abs(u) > epsilon) || (u > 1 && math32.Abs(u-1) > epsilon) {
 		return false, 0
 	}
 
 	s_cross_e1 := s.Cross(edge1)
 	v := inv_det * direction.Dot(s_cross_e1)
 
-	if (v < 0 && math.Abs(v) > epsilon) || (u+v > 1 && math.Abs(u+v-1) > epsilon) {
+	if (v < 0 && math32.Abs(v) > epsilon) || (u+v > 1 && math32.Abs(u+v-1) > epsilon) {
 		return false, 0
 	}
 
@@ -58,7 +60,7 @@ func IntersectSegmentTriangle1(origin, direction Vec3, stepSize float64, A, B, C
 	return false, 0
 }
 
-func IntersectSegmentTriangle(origin, direction Vec3, stepSize float64, A, B, C Vec3) (bool, float64) {
+func IntersectSegmentTriangle(origin, direction Vec3, stepSize float32, A, B, C Vec3) (bool, float32) {
 	const EPSILON = 1e-6 // Increased precision for better accuracy
 
 	// Normalize direction vector to ensure consistent distance calculations
@@ -80,7 +82,7 @@ func IntersectSegmentTriangle(origin, direction Vec3, stepSize float64, A, B, C 
 	determinant := edge1.Dot(pvec)
 
 	// If the determinant is close to 0, the ray lies in the plane of the triangle or is parallel to it.
-	if math.Abs(determinant) < EPSILON {
+	if math32.Abs(determinant) < EPSILON {
 		return false, 0
 	}
 	invDeterminant := 1.0 / determinant
@@ -169,7 +171,7 @@ func InterpolateNormal2(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 	denom := d00*d11 - d01*d01
 
 	// Use epsilon comparison instead of exact equality for floating-point safety
-	if math.Abs(denom) < EPSILON {
+	if math32.Abs(denom) < EPSILON {
 		// The triangle is degenerate (a line or a point), return the normal of the first vertex.
 		return nA.Normalize()
 	}
@@ -182,9 +184,9 @@ func InterpolateNormal2(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 	u := 1.0 - v - w
 
 	// Clamp barycentric coordinates to handle floating-point precision issues
-	u = math.Max(0.0, math.Min(1.0, u))
-	v = math.Max(0.0, math.Min(1.0, v))
-	w = math.Max(0.0, math.Min(1.0, w))
+	u = max(0.0, min(1.0, u))
+	v = max(0.0, min(1.0, v))
+	w = max(0.0, min(1.0, w))
 
 	// Renormalize to ensure they sum to 1.0
 	sum := u + v + w
@@ -213,8 +215,8 @@ func InterpolateNormal2(p, a, b, c Vec3, nA, nB, nC Vec3) Vec3 {
 }
 
 func SampleTrianglePoint(A, B, C Vec3) Vec3 {
-	u := rand.Float64()
-	v := rand.Float64() * (1 - u)
+	u := rand.Float32()
+	v := rand.Float32() * (1 - u)
 	w := 1 - u - v
 
 	A._Scale(w)
@@ -226,20 +228,20 @@ func SampleTrianglePoint(A, B, C Vec3) Vec3 {
 	return A
 }
 
-func TriangleArea(A, B, C Vec3) float64 {
+func TriangleArea(A, B, C Vec3) float32 {
 	// Calculate the area using the cross product
 	AB := B.Sub(A)
 	AC := C.Sub(A)
 	return 0.5 * AB.Cross(AC).Length()
 }
 
-func Clamp01(val float64) float64 {
-	return math.Max(0, math.Min(1, val))
+func Clamp01(val float32) float32 {
+	return max(0, min(1, val))
 }
 
 func GetCosineWeighedHemisphereSampling(normal Vec3) Vec3 {
 	var up Vec3
-	if math.Abs(normal.Y) < 0.999 {
+	if math32.Abs(normal.Y) < 0.999 {
 		up = Vec3{X: 0, Y: 1, Z: 0}
 	} else {
 		up = Vec3{X: 1, Y: 0, Z: 0}
@@ -250,15 +252,15 @@ func GetCosineWeighedHemisphereSampling(normal Vec3) Vec3 {
 
 	tangent2 := normal.Cross(tangent1)
 
-	u1 := rand.Float64()
-	u2 := rand.Float64()
+	u1 := rand.Float32()
+	u2 := rand.Float32()
 
-	r := math.Sqrt(u1)
+	r := math32.Sqrt(u1)
 	theta := 2 * math.Pi * u2
 
-	x := r * math.Cos(theta)
-	y := r * math.Sin(theta)
-	z := math.Sqrt(math.Max(0.0, 1.0-u1)) // This equals cos(phi)
+	x := r * math32.Cos(theta)
+	y := r * math32.Sin(theta)
+	z := math32.Sqrt(max(0.0, 1.0-u1)) // This equals cos(phi)
 
 	dir := tangent1.Scale(x)
 	dir._Add(tangent2.Scale(y))
@@ -269,15 +271,15 @@ func GetCosineWeighedHemisphereSampling(normal Vec3) Vec3 {
 }
 
 func GetCosineWeighedHemisphereSampling2(normal, tangent1, tangent2 Vec3) Vec3 {
-	u1 := rand.Float64()
-	u2 := rand.Float64()
+	u1 := rand.Float32()
+	u2 := rand.Float32()
 
-	r := math.Sqrt(u1)
+	r := math32.Sqrt(u1)
 	theta := 2 * math.Pi * u2
 
-	x := r * math.Cos(theta)
-	y := r * math.Sin(theta)
-	z := math.Sqrt(math.Max(0.0, 1.0-u1)) // This equals cos(phi)
+	x := r * math32.Cos(theta)
+	y := r * math32.Sin(theta)
+	z := math32.Sqrt(max(0.0, 1.0-u1)) // This equals cos(phi)
 
 	dir := tangent1.Scale(x)
 	dir._Add(tangent2.Scale(y))
@@ -291,7 +293,7 @@ func reflect(V, N Vec3) Vec3 {
 	return V.Sub(N.Scale(2 * V.Dot(N)))
 }
 
-func GetRefractedRay(inDir, inNormal Vec3, n1, n2 float64) (Vec3, bool) {
+func GetRefractedRay(inDir, inNormal Vec3, n1, n2 float32) (Vec3, bool) {
 	// T = R * A + (R * c - √(1 - R² * (1 - c²))) * N
 	A := inDir.Normalize()
 	N := inNormal.Normalize()
@@ -301,5 +303,5 @@ func GetRefractedRay(inDir, inNormal Vec3, n1, n2 float64) (Vec3, bool) {
 	if D < 0 {
 		return reflect(inDir, inNormal), true
 	}
-	return (A.Scale(R).Add(N.Scale(c*R - math.Sqrt(D)))).Normalize(), false
+	return (A.Scale(R).Add(N.Scale(c*R - math32.Sqrt(D)))).Normalize(), false
 }

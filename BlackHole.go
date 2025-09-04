@@ -9,7 +9,7 @@ import (
 
 type BlackHole struct {
 	Position      Vec3
-	Rs            float64
+	Rs            float32
 	AccretionDisk *AccretionDisk
 }
 
@@ -54,7 +54,7 @@ func GetInitialState(
 		// Return a zero state to indicate an error.
 		return &RayState{}
 	}
-	V_t := (-B + math.Sqrt(discriminant)) / (2 * A)
+	V_t := (-B + math32.Sqrt(discriminant)) / (2 * A)
 
 	return &RayState{
 		P_t: 0.0, // Start at coordinate time 0
@@ -72,7 +72,7 @@ func GetInitialState(
 // derived from the Schwarzschild metric in Kerr-Schild Cartesian coordinates.
 // This form is free of polar singularities.
 func GetAcceleration(state *RayState, blackHole *BlackHole) (float32, float32, float32, float32) {
-	rs := float32(blackHole.Rs)
+	rs := blackHole.Rs
 
 	// Cache state values
 	px, py, pz := state.P_x, state.P_y, state.P_z
@@ -164,8 +164,8 @@ func Step(state *RayState, stepSize float32, blackHole *BlackHole) *RayState {
 
 // AccretionDisk represents the parameters for our procedural disk.
 type AccretionDisk struct {
-	InnerRadius float64        // The radius where the disk starts.
-	OuterRadius float64        // The radius where the disk ends.
+	InnerRadius float32        // The radius where the disk starts.
+	OuterRadius float32        // The radius where the disk ends.
 	NoiseGen    *perlin.Perlin // Assuming a Perlin noise generator.
 }
 
@@ -177,8 +177,8 @@ func (disk *AccretionDisk) GetProceduralColor(worldPosition Vec3, blackHolePosit
 
 	// 2. Convert to 2D polar coordinates (radius and angle) for texturing.
 	// We'll use the XZ plane for a Y-up renderer.
-	radius := math.Sqrt(relativePos.X*relativePos.X + relativePos.Z*relativePos.Z)
-	angle := math.Atan2(relativePos.Z, relativePos.X)
+	radius := math32.Sqrt(relativePos.X*relativePos.X + relativePos.Z*relativePos.Z)
+	angle := math32.Atan2(relativePos.Z, relativePos.X)
 
 	// --- Layer 1: Temperature Gradient ---
 
@@ -217,18 +217,18 @@ func (disk *AccretionDisk) GetProceduralColor(worldPosition Vec3, blackHolePosit
 
 	// We sample the 2D noise function using polar coordinates.
 	// Manipulating these coordinates is how we create the swirling effect.
-	noiseScale := 3.0    // Controls the "zoom" level of the noise. Higher is more detailed.
-	stretchFactor := 2.0 // Stretches the noise along the angle to create a fibrous look.
+	noiseScale := float32(3.0)    // Controls the "zoom" level of the noise. Higher is more detailed.
+	stretchFactor := float32(2.0) // Stretches the noise along the angle to create a fibrous look.
 
 	// Convert polar to distorted Cartesian coordinates for noise sampling.
 	noiseX := (radius / disk.OuterRadius) * noiseScale * stretchFactor
 	noiseY := (angle / (2 * math.Pi)) * noiseScale
 
 	// Get a noise value, map it from [-1, 1] to [0, 1].
-	noiseValue := (disk.NoiseGen.Noise2D(noiseX, noiseY) + 1.0) / 2.0
+	noiseValue := float32(disk.NoiseGen.Noise2D(float64(noiseX), float64(noiseY))+1.0) / 2.0
 
 	// We can raise the noise to a power to increase contrast and create sharper "filaments".
-	noiseValue = math.Pow(noiseValue, 5.0)
+	noiseValue = math32.Pow(float32(noiseValue), float32(5.0))
 
 	// Add a minimum brightness to the noise to ensure the disk is always visible.
 	// noiseValue = noiseValue*0.95 + 0.05

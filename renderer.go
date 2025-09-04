@@ -3,21 +3,22 @@ package main
 import (
 	"image"
 	"image/color"
-	"math"
 	"sync"
 	"unsafe"
+
+	"github.com/chewxy/math32"
 )
 
 type Pixel struct {
 	X, Y         uint32
-	R, G, B      float64
+	R, G, B      float32
 	SampleCount  int
-	Variance     float64 // Add this
+	Variance     float32 // Add this
 	M2           Vec3    // For online variance calculation
 	Mean         Vec3    // Running mean
-	MinLuminance float64 // Add this
-	MaxLuminance float64 // Add this
-	Contrast     float64 // Add this
+	MinLuminance float32 // Add this
+	MaxLuminance float32 // Add this
+	Contrast     float32 // Add this
 	Lock         sync.Mutex
 }
 
@@ -26,7 +27,7 @@ func (p *Pixel) AddSample(color Vec3) {
 	// defer p.Lock.Unlock()
 
 	p.SampleCount++
-	n := float64(p.SampleCount)
+	n := float32(p.SampleCount)
 
 	// Update mean and variance
 	delta := Vec3{
@@ -80,7 +81,7 @@ func (p *Pixel) AddSample(color Vec3) {
 	p.Contrast = p.MaxLuminance - p.MinLuminance
 }
 
-func colorToLuminance(color Vec3) float64 {
+func colorToLuminance(color Vec3) float32 {
 	return 0.2126*color.X + 0.7152*color.Y + 0.0722*color.Z
 }
 
@@ -118,9 +119,9 @@ func CacheImage(img image.Image) CachedImage {
 var images map[string]CachedImage = map[string]CachedImage{}
 
 //go:nosplit
-func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
-	px := int(x * float64(img.Width-1))
-	py := int(y * float64(img.Height-1))
+func SampleDiffuseMap(img *CachedImage, x, y float32) color.RGBA {
+	px := int(x * float32(img.Width-1))
+	py := int(y * float32(img.Height-1))
 
 	offset := (py*(img.Width) + px) << 2
 
@@ -133,25 +134,25 @@ func SampleDiffuseMap(img *CachedImage, x, y float64) color.RGBA {
 	}
 }
 
-func SampleBumpMap(img *CachedImage, x, y float64, strength float64) Vec3 {
+func SampleBumpMap(img *CachedImage, x, y float32, strength float32) Vec3 {
 	// Wrap coordinates to handle texture edges
 	// x = math.Mod(x, 1.0)
 	// y = math.Mod(y, 1.0)
 
 	// Calculate offset based on texture resolution for consistent sampling
-	w, h := float64(img.Width), float64(img.Height)
+	w, h := float32(img.Width), float32(img.Height)
 	offsetX := 1.0 / w
 	offsetY := 1.0 / h
 
 	// Sample current pixel and neighbors
 	center := SampleDiffuseMap(img, x, y)
-	right := SampleDiffuseMap(img, math.Mod(x+offsetX, 1.0), y)
-	up := SampleDiffuseMap(img, x, math.Mod(y+offsetY, 1.0))
+	right := SampleDiffuseMap(img, math32.Mod(x+offsetX, 1.0), y)
+	up := SampleDiffuseMap(img, x, math32.Mod(y+offsetY, 1.0))
 
 	// Convert to height using luminance for better results
-	centerHeight := (0.299*float64(center.R) + 0.587*float64(center.G) + 0.114*float64(center.B)) / 255.0
-	rightHeight := (0.299*float64(right.R) + 0.587*float64(right.G) + 0.114*float64(right.B)) / 255.0
-	upHeight := (0.299*float64(up.R) + 0.587*float64(up.G) + 0.114*float64(up.B)) / 255.0
+	centerHeight := (0.299*float32(center.R) + 0.587*float32(center.G) + 0.114*float32(center.B)) / 255.0
+	rightHeight := (0.299*float32(right.R) + 0.587*float32(right.G) + 0.114*float32(right.B)) / 255.0
+	upHeight := (0.299*float32(up.R) + 0.587*float32(up.G) + 0.114*float32(up.B)) / 255.0
 
 	// Calculate gradient
 	dx := (rightHeight - centerHeight) * strength
@@ -167,9 +168,9 @@ func SampleBumpMap(img *CachedImage, x, y float64, strength float64) Vec3 {
 	return normal.Normalize() // This is essential!
 }
 
-func SampleBumpMap2(img *CachedImage, x, y float64, strength float64) Vec3 {
-	// x = (math.Mod(float64(x), 1))
-	// y = (math.Mod(float64(y), 1))
+func SampleBumpMap2(img *CachedImage, x, y float32, strength float32) Vec3 {
+	// x = (math.Mod(float32(x), 1))
+	// y = (math.Mod(float32(y), 1))
 
 	// Sample current pixel and neighbors for gradient calculation
 	center := SampleDiffuseMap(img, x, y)
@@ -177,9 +178,9 @@ func SampleBumpMap2(img *CachedImage, x, y float64, strength float64) Vec3 {
 	up := SampleDiffuseMap(img, x, y+0.001)
 
 	// Convert to height (use red channel or luminance)
-	centerHeight := float64(center.R) / 255.0
-	rightHeight := float64(right.R) / 255.0
-	upHeight := float64(up.R) / 255.0
+	centerHeight := float32(center.R) / 255.0
+	rightHeight := float32(right.R) / 255.0
+	upHeight := float32(up.R) / 255.0
 
 	// Calculate gradient (slope) to get normal
 	dx := (rightHeight - centerHeight) * strength
@@ -195,7 +196,7 @@ func SampleBumpMap2(img *CachedImage, x, y float64, strength float64) Vec3 {
 	return normal //.Normalize()
 }
 
-func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriangle, intersection_point Vec3, uvs []float64) Vec3 {
+func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriangle, intersection_point Vec3, uvs []float32) Vec3 {
 	// If no normal map data, just return the geometric normal
 	if tangentNormal.X == 0 && tangentNormal.Y == 0 && tangentNormal.Z == 1 {
 		return worldNormal
@@ -224,10 +225,10 @@ func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriang
 	det := deltaUV1_x*deltaUV2_y - deltaUV2_x*deltaUV1_y
 
 	// Handle degenerate UV coordinates
-	if math.Abs(det) < 1e-6 {
+	if math32.Abs(det) < 1e-6 {
 		// Fallback: create arbitrary tangent space
 		var up Vec3
-		if math.Abs(worldNormal.Y) < 0.9 {
+		if math32.Abs(worldNormal.Y) < 0.9 {
 			up = Vec3{X: 0, Y: 1, Z: 0}
 		} else {
 			up = Vec3{X: 1, Y: 0, Z: 0}
@@ -289,12 +290,12 @@ func TransformNormalToWorldSpace(tangentNormal, worldNormal Vec3, tri *BVHTriang
 	return worldSpaceNormal.Normalize()
 }
 
-func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Material, []float64, []EmissiveTriangle) {
+func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Material, []float32, []EmissiveTriangle) {
 	vertices := make([]Vec3, 0)
 	tris := make([]int, 0)
 	normals := make([]Vec3, 0)
 	materials := make([]*Material, 0)
-	uvs := make([]float64, 0)
+	uvs := make([]float32, 0)
 
 	for _, object := range objects {
 		for _, v := range object.Mesh.Vertices {
@@ -322,7 +323,7 @@ func DecomposeObjects(objects []*GameObject[any]) ([]Vec3, []int, []Vec3, []*Mat
 	return vertices, tris, normals, materials, uvs, emissives
 }
 
-func MISWeight(pdf1, pdf2 float64) float64 {
+func MISWeight(pdf1, pdf2 float32) float32 {
 	if pdf1 <= 0 {
 		return 0
 	}

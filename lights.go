@@ -2,7 +2,7 @@ package main
 
 type Light interface {
 	isLight()
-	Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float64, lightPos Vec3) Vec3
+	Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float32, lightPos Vec3) Vec3
 	// Sample(origin, direction, normal Vec3) Vec3
 }
 
@@ -11,11 +11,11 @@ type Light interface {
 type Sun struct {
 	Color     Vec3
 	Direction Vec3
-	Intensity float64
+	Intensity float32
 }
 
 func (s *Sun) isLight() {}
-func (s *Sun) Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float64, lightPos Vec3) Vec3 {
+func (s *Sun) Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float32, lightPos Vec3) Vec3 {
 	ndotr := ray.Direction.Dot(normal)
 	if ndotr < 0 {
 		return Vec3{}
@@ -31,11 +31,11 @@ func (s *Sun) Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float64, lig
 
 type PointLight struct {
 	Color     Vec3
-	Intensity float64
+	Intensity float32
 }
 
 func (s *PointLight) isLight() {}
-func (s *PointLight) Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float64, lightPos Vec3) Vec3 {
+func (s *PointLight) Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float32, lightPos Vec3) Vec3 {
 	toLight := lightPos.Sub(ray.Origin)
 	distance := toLight.Length()
 	toLight._Normalize()
@@ -53,7 +53,7 @@ func (s *PointLight) Sample(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float
 	return s.Color.Scale(ndotl * s.Intensity * attenuation)
 }
 
-func (s *PointLight) Sample2(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float64, lightPos Vec3) Vec3 {
+func (s *PointLight) Sample2(ray Ray, normal Vec3, bvh *LinearBVH, stepSize float32, lightPos Vec3) Vec3 {
 	// 1. Create direction FROM hit point TO light
 	toLight := lightPos.Sub(ray.Origin)
 	distance := toLight.Length()

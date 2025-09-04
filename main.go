@@ -127,19 +127,19 @@
 
 // 		case fyne.KeyI:
 // 			rotX -= 0.01
-// 			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+// 			camera.SetRotationFromAngles(float32(rotY), float32(rotX))
 // 			dirty = true
 // 		case fyne.KeyK:
 // 			rotX += 0.01
-// 			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+// 			camera.SetRotationFromAngles(float32(rotY), float32(rotX))
 // 			dirty = true
 // 		case fyne.KeyJ:
 // 			rotY -= 0.01
-// 			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+// 			camera.SetRotationFromAngles(float32(rotY), float32(rotX))
 // 			dirty = true
 // 		case fyne.KeyL:
 // 			rotY += 0.01
-// 			camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+// 			camera.SetRotationFromAngles(float32(rotY), float32(rotX))
 // 			dirty = true
 
 // 		case fyne.KeyPageUp:
@@ -193,8 +193,8 @@
 // 	splitsY := 4
 // 	startX := 0.0
 // 	startY := 0.0
-// 	splitSizeX := float64(width / splitsX)
-// 	splitSizeY := float64(height / splitsY)
+// 	splitSizeX := float32(width / splitsX)
+// 	splitSizeY := float32(height / splitsY)
 // 	iteration := atomic.Int64{}
 // 	tileIndex := atomic.Int64{}
 
@@ -229,7 +229,7 @@
 
 // 				var dt int
 // 				if randomSampling {
-// 					dt = int(math.Floor(float64(time.Now().UnixMilli()-startTime)/1000)/10.0) % (splitsX * splitsY)
+// 					dt = int(math.Floor(float32(time.Now().UnixMilli()-startTime)/1000)/10.0) % (splitsX * splitsY)
 // 				} else {
 // 					dt = int(tileIndex.Load()) % (splitsX * splitsY)
 // 				}
@@ -237,32 +237,32 @@
 // 				X := dt % splitsX
 // 				Y := dt / splitsX
 
-// 				offsetX := (splitSizeX * float64(X)) / float64(width)
-// 				offsetY := (splitSizeY * float64(Y)) / float64(height)
+// 				offsetX := (splitSizeX * float32(X)) / float32(width)
+// 				offsetY := (splitSizeY * float32(Y)) / float32(height)
 
-// 				var rx, ry float64
+// 				var rx, ry float32
 
 // 				if randomSampling {
 // 					// Calculate random pixel
-// 					randX := rand.Float64() * splitSizeX
-// 					randY := rand.Float64() * splitSizeY
-// 					rx = offsetX + randX/float64(width)
-// 					ry = offsetY + randY/float64(height)
+// 					randX := rand.float32() * splitSizeX
+// 					randY := rand.float32() * splitSizeY
+// 					rx = offsetX + randX/float32(width)
+// 					ry = offsetY + randY/float32(height)
 // 				} else {
 // 					//  Calculate random pixel
-// 					randX := rand.Float64()
-// 					randY := rand.Float64()
+// 					randX := rand.float32()
+// 					randY := rand.float32()
 // 					dX := iteration.Load() % int64(splitSizeX)
 // 					dY := (iteration.Load() / int64(splitSizeY)) % int64(splitSizeY)
-// 					rx = offsetX + (float64(dX)+randX/float64(width))/float64(width)
-// 					ry = offsetY + (float64(dY)+randY/float64(height))/float64(height)
+// 					rx = offsetX + (float32(dX)+randX/float32(width))/float32(width)
+// 					ry = offsetY + (float32(dY)+randY/float32(height))/float32(height)
 // 					iteration.Add(1)
 // 				}
 
-// 				pixelX := int(math.Round(rx * float64(width-1)))
-// 				pixelY := int(math.Round(ry * float64(height-1)))
-// 				startX = ((1.0 - offsetX) * float64(width)) - splitSizeX
-// 				startY = offsetY * float64(height)
+// 				pixelX := int(math.Round(rx * float32(width-1)))
+// 				pixelY := int(math.Round(ry * float32(height-1)))
+// 				startX = ((1.0 - offsetX) * float32(width)) - splitSizeX
+// 				startY = offsetY * float32(height)
 
 // 				// Bounds check
 // 				if pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height {
@@ -286,15 +286,15 @@
 // 				pixel.Lock.Lock()
 
 // 				// Accumulate color
-// 				pixel.R += float64(rayColor.X)
-// 				pixel.G += float64(rayColor.Y)
-// 				pixel.B += float64(rayColor.Z)
+// 				pixel.R += float32(rayColor.X)
+// 				pixel.G += float32(rayColor.Y)
+// 				pixel.B += float32(rayColor.Z)
 // 				pixel.SampleCount++
 
 // 				// Calculate running average
-// 				avgR := pixel.R / float64(pixel.SampleCount)
-// 				avgG := pixel.G / float64(pixel.SampleCount)
-// 				avgB := pixel.B / float64(pixel.SampleCount)
+// 				avgR := pixel.R / float32(pixel.SampleCount)
+// 				avgG := pixel.G / float32(pixel.SampleCount)
+// 				avgB := pixel.B / float32(pixel.SampleCount)
 // 				pixel.Lock.Unlock()
 
 // 				avgColor := Vec3{
@@ -366,7 +366,7 @@
 // 					newImage.Resize(fyne.NewSize(float32(width), float32(height)))
 
 // 					ts := time.Now().UnixMilli() - lastTimeStep + 1
-// 					raysTracedCount := float64(raysTraced.Load()) * 1000 / float64(ts)
+// 					raysTracedCount := float32(raysTraced.Load()) * 1000 / float32(ts)
 // 					raysTraced.Store(0)
 // 					lastTimeStep = time.Now().UnixMilli()
 
@@ -429,6 +429,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"github.com/aquilax/go-perlin"
+	"github.com/chewxy/math32"
 )
 
 var threadCount = 16 // Number of goroutines to use for rendering
@@ -446,14 +447,14 @@ func main() {
 	samplesPerPixel := 32
 	maxSamplesPerPixel := 32
 	scatterRays := 1
-	ambient := 0.0
+	ambient := float32(0.0)
 	maxSteps := 3000
-	stepSize := 1.0
+	stepSize := float32(1.0)
 
 	splitsX := 4
 	splitsY := 4
-	splitSizeX := float64(width / splitsX)
-	splitSizeY := float64(height / splitsY)
+	splitSizeX := float32(width / splitsX)
+	splitSizeY := float32(height / splitsY)
 
 	samples := atomic.Int64{}
 	totalSamples := width * height * maxSamplesPerPixel
@@ -474,8 +475,8 @@ func main() {
 		y := (i / splitsX) * int(splitSizeY)
 
 		pixels := make([]*Pixel, 0)
-		for h := range int(math.Floor(splitSizeY)) {
-			for w := range int(math.Floor(splitSizeX)) {
+		for h := range int(math32.Floor(splitSizeY)) {
+			for w := range int(math32.Floor(splitSizeX)) {
 				pixels = append(pixels, &pixelBuffer[y+h][w+x])
 			}
 		}
@@ -621,8 +622,8 @@ func main() {
 	}
 
 	// ----------------------------------------------- Empty Scene ---------------------------------------------
-	var theta = 90.0 * 0.0174533
-	var phi = 83.0 * 0.0174533
+	var theta float32 = 90.0 * 0.0174533
+	var phi float32 = 83.0 * 0.0174533
 	emptyScene := Scene{}
 	emptyScene.Camera = &Camera{
 		Position:         Vec3{X: 0, Y: 100, Z: 1500},
@@ -720,19 +721,19 @@ func main() {
 
 		// case fyne.KeyI:
 		// 	rotX -= 0.01
-		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+		// 	camera.SetRotationFromAngles(float32(rotY), float32(rotX))
 		// 	dirty = true
 		// case fyne.KeyK:
 		// 	rotX += 0.01
-		// 	camera.SetRotationFromAngles(float64(rotY), float64(rotX))
+		// 	camera.SetRotationFromAngles(float32(rotY), float32(rotX))
 		// 	dirty = true
 		case fyne.KeyJ:
 			theta -= 10 * 0.0174533
-			camera.SphericalAround(Vec3{}, 1500, float64(theta), float64(phi))
+			camera.SphericalAround(Vec3{}, 1500, float32(theta), float32(phi))
 			dirty = true
 		case fyne.KeyL:
 			theta += 10 * 0.0174533
-			camera.SphericalAround(Vec3{}, 1500, float64(theta), float64(phi))
+			camera.SphericalAround(Vec3{}, 1500, float32(theta), float32(phi))
 			dirty = true
 
 		case fyne.KeyPageUp:
@@ -858,8 +859,8 @@ func main() {
 				// }
 
 				for range thisSamples {
-					rx := (float64(pixel.X) + rand.Float64()) / float64(width)
-					ry := (float64(pixel.Y) + rand.Float64()) / float64(height)
+					rx := (float32(pixel.X) + rand.Float32()) / float32(width)
+					ry := (float32(pixel.Y) + rand.Float32()) / float32(height)
 
 					px := (rx - 0.5) * 2
 					py := (ry - 0.5) * 2
@@ -882,9 +883,9 @@ func main() {
 				}
 
 				// Calculate running average
-				avgR := pixel.R / float64(pixel.SampleCount)
-				avgG := pixel.G / float64(pixel.SampleCount)
-				avgB := pixel.B / float64(pixel.SampleCount)
+				avgR := pixel.R / float32(pixel.SampleCount)
+				avgG := pixel.G / float32(pixel.SampleCount)
+				avgB := pixel.B / float32(pixel.SampleCount)
 
 				avgColor := Vec3{
 					X: avgR,
@@ -941,8 +942,8 @@ func main() {
 
 	// Display update loop - runs at fixed 30 FPS
 	lastStatsUpdate := time.Now()
-	maxRaysSpeed := 0.0
-	minRaysSpeed := math.MaxFloat64
+	maxRaysSpeed := float32(0.0)
+	minRaysSpeed := float32(math32.MaxFloat32)
 	endTime := time.Now()
 	go func() {
 		displayTicker := time.NewTicker(time.Second / 30) // 30 FPS
@@ -967,7 +968,7 @@ func main() {
 
 				// Clear stats
 				maxRaysSpeed = 0.0
-				minRaysSpeed = math.MaxFloat64
+				minRaysSpeed = math.MaxFloat32
 				totalRaysTraced = 0
 				raysTraced.Store(0)
 				recentRaysTraced.Store(0)
@@ -996,8 +997,8 @@ func main() {
 				}
 
 				totalRaysTraced = int(raysTraced.Load())
-				dt := float64(endTime.Sub(startTime).Abs().Milliseconds())
-				averageRaysSpeed := float64(totalRaysTraced*1000) / dt
+				dt := float32(endTime.Sub(startTime).Abs().Milliseconds())
+				averageRaysSpeed := float32(totalRaysTraced*1000) / dt
 
 				newImage := canvas.NewImageFromImage(img)
 				newImage.FillMode = canvas.ImageFillOriginal
@@ -1008,7 +1009,7 @@ func main() {
 
 				// Update stats every second
 				if showStats {
-					raysTracedCount := float64(raysTraced.Load()-recentRaysTraced.Load()) * 1000 / dt
+					raysTracedCount := float32(raysTraced.Load()-recentRaysTraced.Load()) * 1000 / dt
 					minRaysSpeed = min(minRaysSpeed, raysTracedCount)
 					maxRaysSpeed = max(maxRaysSpeed, raysTracedCount)
 
@@ -1022,13 +1023,13 @@ func main() {
 					text.Move(fyne.NewPos(5, 10))
 					container.Add(text)
 
-					completionText := canvas.NewText(fmt.Sprintf("%s/%s samples (%.1f%%)", Humanize(samples.Load()), Humanize(totalSamples), (float64(samples.Load()*100)/float64(totalSamples))), color.White)
+					completionText := canvas.NewText(fmt.Sprintf("%s/%s samples (%.1f%%)", Humanize(samples.Load()), Humanize(totalSamples), (float32(samples.Load()*100)/float32(totalSamples))), color.White)
 					completionText.TextSize = 10
 					completionText.Move(fyne.NewPos(5, 23))
 					container.Add(completionText)
 
 					secondsSinceStart := dt / 1000.0
-					samplingSpeed := max(1.0, float64(samples.Load())/float64(secondsSinceStart))
+					samplingSpeed := max(1.0, float32(samples.Load())/float32(secondsSinceStart))
 					secondsToCompletion := totalSamples / int(samplingSpeed)
 					remainingSecs := secondsToCompletion % 60
 					remainingMinutes := secondsToCompletion / 60

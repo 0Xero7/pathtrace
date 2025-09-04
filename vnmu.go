@@ -8,6 +8,6 @@ type EmissiveTriangle struct {
 type VNMU struct {
 	Vertices, Normals []Vec3
 	Materials         []*Material
-	UVs               []float64
+	UVs               []float32
 	EmissiveTriangles []EmissiveTriangle
 }

@@ -5,5 +5,5 @@ type Mesh struct {
 	Tris      []int
 	Normals   []Vec3
 	Materials []*Material
-	UVs       []float64
+	UVs       []float32
 }
